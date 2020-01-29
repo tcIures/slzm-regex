@@ -212,3 +212,6 @@ implicit def stringOps(s: String) = new {
 
 val evil0 = ((("a")%)%) ~ "b"
 time_needed(1, lexing_simp(evil0, "a"*19 + "b"))
+
+val reg0 = (((((("ab")%)%)%)%)%)
+time_needed(1, lexing_simp(evil0, "a"*19 + "b"))
