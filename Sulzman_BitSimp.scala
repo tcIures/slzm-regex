@@ -4,7 +4,6 @@ import scala.annotation.tailrec
 import scala.language.postfixOps  
 import collection.immutable.ListMap
 import scala.collection._
-import mutable.ListBuffer
 
 //Bitcoded version of Sulzman and Lu's algorithm
 abstract class Rexp
