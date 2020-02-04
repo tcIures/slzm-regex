@@ -1,7 +1,7 @@
 import scala.language.implicitConversions    
 import scala.language.reflectiveCalls
-import scala.annotation.tailrec   
-
+import scala.annotation.tailrec  
+import scala.language.postfixOps   
 
 abstract class Rexp 
 case object ZERO extends Rexp
@@ -10,8 +10,6 @@ case class CHAR(c: Char) extends Rexp
 case class ALT(r1: Rexp, r2: Rexp) extends Rexp 
 case class SEQ(r1: Rexp, r2: Rexp) extends Rexp 
 case class STAR(r: Rexp) extends Rexp 
-
-
 
 abstract class Bit
 case object Z extends Bit
@@ -283,6 +281,10 @@ def bsimp(r: ARexp): ARexp = r match {
   }
   case r => r
 }
+
+val reg = ((("a" | ("a" | "b")) | ("b" | "c")) | ("e" | ("b" | "c")))
+
+val reg11 = (("a"%) ~ ("b" | "c"))%
 
 def blex_simp(r: ARexp, s: List[Char]) : Bits = s match {
   case Nil => if (bnullable(r)) bmkeps(r) 

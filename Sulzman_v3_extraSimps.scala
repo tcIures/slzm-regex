@@ -230,11 +230,7 @@ def simp(r: ARexps) : ARexps = r match {
         case (AALTs(bs1, ls1), AALTs(bs2, ls2)) => AALTs(bs++bs1++bs2, multiply(ls1, ls2))
         case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
         case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
-        case (AFROMs(bs1, r1, n1), AFROMs(bs2, r2, n2)) => {
-            if(r1 == r2){
-                AFROMs(bs ++ bs1)
-            }else ASEQs(bs, AFROMs(bs1, r1, n1), AFROMs(bs2, r2, n2))
-        }
+        //case (AFROMs(bs1, r1, n1))
         case (r1s, r2s) => ASEQs(bs, r1s, r2s)
     }
     case AALTs(bs, ls) => ls match {
@@ -350,12 +346,6 @@ def test(r: Rexp, s: String) = {
 
 ///tests
 
-//(a{1,2} + x){2, ..}
-val reg0 = ("a"%(1, 2) | "x")>2
-test(reg0, "aaxaa")
-test(reg0, "xx")
-test(reg0, "aaa")
-
 //(a + e)*
 val reg1 = ("a"|"e")%
 test(reg1, "aaaeee")
@@ -363,15 +353,23 @@ test(reg1, "")
 test(reg1, "aa")
 test(reg1, "ee")
 
+
+//(a{2,..} ~ b)*
+val reg12 = (("a">2) ~ "b")%
+test(reg12, "aab")
+
 //( a{2,4}? ~ (c+d))*
 val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))%
 test(reg2, "aacdaaad")
 test(reg2, "cdcdcdcddd")
 test(reg2, "aac")
 
-//(a{2,..} ~ b)*
-val reg12 = (("a">2) ~ "b")%
-test(reg12, "aab")
+//(a{1,2} + x){2, ..}
+val reg0 = ("a"%(1, 2) | "x")>2
+test(reg0, "aaxaa")
+test(reg0, "xx")
+test(reg0, "aaa")
+
 
 val r1_s1 = "aaaeeeaeaeaeaaeee"
 val r2_s1 = "aaaac"
