@@ -3,7 +3,6 @@ import scala.language.reflectiveCalls
 import scala.annotation.tailrec 
 import scala.language.postfixOps  
 
-//Bitcoded version of Sulzman and Lu's algorithm
 abstract class Rexp
 case object ZERO extends Rexp
 case object ONE extends Rexp
@@ -216,26 +215,44 @@ def getUpperBound(r: ARexp) : Int = r match {
     case _ => 0
 }
 
-def simp_list(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
-    case Nil => Nil
-    case AZERO :: rs => simp_list(rs, s)
-    case AALTs(bs, rs1) :: rs => rs1.map(fuse(bs, _)) ++ simp_list(rs, s)
-    case AFROM(bs, r, n) :: rs => s.find(e => simp_bounded(e) == simp_bounded(AFROM(bs, r, n))) match {
-        case Some(r1) => {
-            val min = List(getLowerBound(r1), n).min
-            AFROM(bs, r, min) :: simp_list(rs, s -- Set(r1) ++ Set(AFROM(bs, r, min)))
-        } 
-        case None => AFROM(bs, r, n) :: simp_list(rs, s ++ Set(AFROM(bs, r, n)))
-    } 
-    case ABETWEEN(bs, r, n, m) :: rs => s.find(e => simp_bounded(e) == simp_bounded(ABETWEEN(bs, r, n, m))) match {
-        case Some(r1) => {
-            val min = List(getLowerBound(r1), n).min
-            val max = List(getUpperBound(r1), m).max
-            ABETWEEN(bs, r, min, max) :: simp_list(rs, s -- Set(r1) ++ Set(ABETWEEN(bs, r, min, max)))
-        }
-        case None => ABETWEEN(bs, r, n, m) :: simp_list(rs, s ++ Set(ABETWEEN(bs, r, n, m)))
+def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = rs match {
+    case Nil => (Nil, s)
+    case AZERO :: rs => simp_list_aux(rs, s)
+    case AALTs(bs, rs1) :: rs => {
+        val (list, set) = simp_list_aux(rs, s)
+        (rs1.map(fuse(bs, _)) ++ list , set)
     }
-    case r1 :: rs => r1 :: simp_list(rs, s)
+    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == r) match {
+        case Some(r1) => {
+            val min = List(n, getLowerBound(r1)).min
+            val newSet = (s -- Set(r1)) ++ Set(AFROM(bs, r, min))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (AFROM(bs, r, min) :: list , set) 
+        }
+        case None => {
+            val newSet = (s ++ Set(AFROM(bs, r, n)))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (AFROM(bs, r, n) :: list, set)
+        }
+    }
+    case r1 :: rs => {
+        val (list, set) = simp_list_aux(rs, s)
+        (r1 :: list, set)
+    }
+}
+
+def handle_bounded(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
+    case Nil => Nil
+    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == r) match {
+        case Some(r1) => AFROM(bs, r, getLowerBound(r1)) :: handle_bounded(rs, s)
+        case None => AFROM(bs, r, n) :: handle_bounded(rs, s)
+    }
+    case r :: rs => r :: rs
+}
+
+def simp_list(rs: List[ARexp]) : List[ARexp] = {
+    val (list, set) = simp_list_aux(rs, Set())
+    handle_bounded(list, set)
 }
 
 def distinctBy[B, C](xs: List[B], 
@@ -249,7 +266,6 @@ def distinctBy[B, C](xs: List[B],
   }
 } 
 
-
 def simp(r: ARexp) : ARexp = r match {
     case ASEQ(bs, r1, r2) =>  (simp(r1), simp(r2)) match {
         case (AZERO, _) => AZERO
@@ -261,7 +277,7 @@ def simp(r: ARexp) : ARexp = r match {
         case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
         case (r1s, r2s) => ASEQ(bs, r1s, r2s)
     }
-    case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp), Set()), erase) match {
+    case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp)), erase) match {
         case Nil => AZERO
         case head::Nil => fuse(bs, head)
         case ls => AALTs(bs, ls)
@@ -387,24 +403,24 @@ val reg10 = (("a"?) ~ ("b" | "c"))%
 val reg11 = (("a"%) ~ ("b" | "c"))%
 val reg12 = (("a"<2) ~ "b")%
 
-val r1_s1 = "aaaeeeaeaeaeaaeee"
-val r2_s1 = "aaaac"
+val r1f = FROM("a", 0)
+val r2f = FROM("a", 1)
+val r3f = FROM("a", 3)
+val r4f = FROM("a", 2)
 
-val r1 = FROM("a", 0)
-val r2 = FROM("a", 5)
-val r3 = FROM("a", 6)
+val testRegF = ALT(r1f, ALT(r2f, ALT(r3f, r4f)))
 
-val set = Set(internalise(r1), internalise(r2), internalise(r3))
+internalise(testRegF)
+simp(internalise(testRegF))
 
-val testReg = ALT(r3, ALT(r1, r2))
+val testF = internalise(testRegF)
 
-val r1 = BETWEEN("a", 2, 3)
-val r2 = BETWEEN("a", 3, 7)
-val r3 = BETWEEN("a", 0 , 6)
+val r1b = BETWEEN("a", 2, 3)
+val r2b = BETWEEN("a", 3, 7)
+val r3b = BETWEEN("a", 0 , 6)
 
-val testReg = ALT(r1, ALT(r2, r3))
+val testRegB = ALT(r1b, ALT(r2b, r3b))
 
-
-
+simp(internalise(testRegB))
 
 
