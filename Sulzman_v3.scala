@@ -198,15 +198,15 @@ def multiply(ls1: List[ARexp], ls2: List[ARexp]) = {
     for(r1 <- ls1; r2 <- ls2) yield ASEQ(getBsq(r1)++getBsq(r2), emptyBsq(r1), emptyBsq(r2))
 }
 
-def simp_bounded(r: ARexp) : ARexp = r match {
-    case AFROM(bs, r1, n) => r1
-    case ABETWEEN(bs, r1, n, m) => r1
-    case _ => r
+def simp_bounded(r: ARexp) : Rexp = r match {
+    case AFROM(bs, r1, n) => FROM(erase(r1), 0)
+    case ABETWEEN(bs, r1, n, m) => BETWEEN(erase(r1), 0, 0)
+    case _ => erase(r)
 }
 
 def getLowerBound(r: ARexp) : Int = r match {
     case AFROM(bs, r, n) => n
-    case ABETWEEN(bs, r, n, m) => m
+    case ABETWEEN(bs, r, n, m) => n
     case _ => 0
 }
 
@@ -222,7 +222,7 @@ def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = 
         val (list, set) = simp_list_aux(rs, s)
         (rs1.map(fuse(bs, _)) ++ list , set)
     }
-    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == r) match {
+    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
         case Some(r1) => {
             val min = List(n, getLowerBound(r1)).min
             val newSet = (s -- Set(r1)) ++ Set(AFROM(bs, r, min))
@@ -235,6 +235,20 @@ def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = 
             (AFROM(bs, r, n) :: list, set)
         }
     }
+    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
+        case Some(r1) => {
+            val min = List(n, getLowerBound(r1)).min
+            val max = List(m, getUpperBound(r1)).max
+            val newSet = (s -- Set(r1)) ++ Set(ABETWEEN(bs, r, min, max))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (ABETWEEN(bs, r, min, max) :: list , set) 
+        }
+        case None => {
+            val newSet = (s ++ Set(ABETWEEN(bs, r, n, m)))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (ABETWEEN(bs, r, n, m) :: list, set)
+        }
+    }
     case r1 :: rs => {
         val (list, set) = simp_list_aux(rs, s)
         (r1 :: list, set)
@@ -243,9 +257,13 @@ def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = 
 
 def handle_bounded(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
     case Nil => Nil
-    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == r) match {
+    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
         case Some(r1) => AFROM(bs, r, getLowerBound(r1)) :: handle_bounded(rs, s)
         case None => AFROM(bs, r, n) :: handle_bounded(rs, s)
+    }
+    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
+        case Some(r1) => ABETWEEN(bs, r, getLowerBound(r1), getUpperBound(r1)) :: handle_bounded(rs, s)
+        case None => ABETWEEN(bs, r, n, m) :: handle_bounded(rs, s)
     }
     case r :: rs => r :: rs
 }
@@ -415,12 +433,24 @@ simp(internalise(testRegF))
 
 val testF = internalise(testRegF)
 
+val (list, set) = simp_list_aux(getAlts(testF), Set())
+handle_bounded(list, set)
+
 val r1b = BETWEEN("a", 2, 3)
 val r2b = BETWEEN("a", 3, 7)
 val r3b = BETWEEN("a", 0 , 6)
 
 val testRegB = ALT(r1b, ALT(r2b, r3b))
+val testB = internalise(testRegB)
+
+simp_list_aux(getAlts(testB), Set())
 
 simp(internalise(testRegB))
 
+val test = internalise(("a">2) | ("a">1) | ("a">4) | ("a"%(2, 3)) | ("a"%(1, 4)))
+simp(test)
 
+def getAlts(r: ARexp) : List[ARexp] = r match {
+    case AALTs(_, rs) => rs
+    case _ => Nil
+}
