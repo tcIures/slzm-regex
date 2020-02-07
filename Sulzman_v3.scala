@@ -408,7 +408,7 @@ def test(r: Rexp, s: String) = {
 
 val reg0 = ("a"%(1, 2) | "x")>2
 val reg1 = ("a"|"e")%
-val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))%
+val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))
 val reg3 = (((("a")?)%(2,3))~("b"|"c"))%
 val reg3_1 = (((("a")?)%(2,3))~("b"))%
 val reg4 = ((("ab")?)%(1,2))%

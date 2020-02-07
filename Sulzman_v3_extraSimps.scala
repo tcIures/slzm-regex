@@ -3,8 +3,6 @@ import scala.language.reflectiveCalls
 import scala.annotation.tailrec 
 import scala.language.postfixOps  
 
-
-//Bitcoded version of Sulzman and Lu's algorithm
 abstract class Rexp
 case object ZERO extends Rexp
 case object ONE extends Rexp
@@ -24,15 +22,18 @@ type Bits = List[Bit]
 
 implicit def bit2bits(b: Bit) : Bits = List(b)
 
-abstract class ARexps
-case object AZEROs extends ARexps
-case class AONEs(bs: Bits) extends ARexps
-case class ACHARs(bs: Bits, c: Char) extends ARexps
-case class AALTs(bs: Bits, l: List[ARexps]) extends ARexps
-case class ASEQs(bs: Bits, r1: ARexps, r2: ARexps) extends ARexps
-case class AFROMs(bs: Bits, r: ARexps, n: Int) extends ARexps
-case class ABETWEENs(bs: Bits, r: ARexps, n: Int, m: Int) extends ARexps
-case class ANOTs(bs: Bits, r: ARexps) extends ARexps
+abstract class ARexp
+case object AZERO extends ARexp
+case class AONE(bs: Bits) extends ARexp
+case class ACHAR(bs: Bits, c: Char) extends ARexp
+case class ARANGE(bs: Bits, ls: List[Char]) extends ARexp
+case class AALTs(bs: Bits, l: List[ARexp]) extends ARexp
+case class ASEQ(bs: Bits, r1: ARexp, r2: ARexp) extends ARexp
+case class AFROM(bs: Bits, r: ARexp, n: Int) extends ARexp
+case class ABETWEEN(bs: Bits, r: ARexp, n: Int, m: Int) extends ARexp
+case class ANOT(bs: Bits, r: ARexp) extends ARexp
+
+def AALT(bs: Bits, r1: ARexp, r2: ARexp) : ARexp = AALTs(bs, List(r1, r2))
 
 abstract class Val
 case object Empty extends Val
@@ -83,179 +84,237 @@ def decode(r: Rexp, bs: Bits) = decode_aux(r, bs) match {
     case _ => throw new Exception("Not decodable")
 }
 
-def nullable(r: ARexps) : Boolean = r match {
-    case AZEROs => false
-    case AONEs(_) => true
-    case ACHARs(_,_) => false
-    case AALTs(bs, ls) => ls match {
+def nullable(r: ARexp) : Boolean = r match {
+    case AZERO => false
+    case AONE(_) => true
+    case ACHAR(_,_) => false
+    case ARANGE(_,_) => false
+    case AALTs(bs , ls) => ls match {
         case Nil => false
         case head::tail => nullable(head) || nullable(AALTs(bs, tail))
     }
-    case ASEQs(_, r1, r2) => nullable(r1) && nullable(r2)
-    case AFROMs(_,r, i) => if(i == 0) true else nullable(r)
-    case ABETWEENs(_,r, i, _) => if(i == 0) true else nullable(r)
-    case ANOTs(_,r) => !nullable(r)
+    case ASEQ(_, r1, r2) => nullable(r1) && nullable(r2)
+    case AFROM(_,r, i) => if(i == 0) true else nullable(r)
+    case ABETWEEN(_,r, i, _) => if(i == 0) true else nullable(r)
+    case ANOT(_,r) => !nullable(r)
 }
 
-def fuse_reversed(bs: Bits, r: ARexps) : ARexps = r match {
-    case AZEROs => AZEROs
-    case AONEs(bsq) => AONEs(bsq ++ bs)
-    case ACHARs(bsq, c) => ACHARs(bsq ++ bs, c)
+def fuse_reversed(bs: Bits, r: ARexp) : ARexp = r match {
+    case AZERO => AZERO
+    case AONE(bsq) => AONE(bsq ++ bs)
+    case ACHAR(bsq, c) => ACHAR(bsq ++ bs, c)
     case AALTs(bsq, ls) => AALTs(bsq ++ bs, ls)
-    case ASEQs(bsq, r1, r2) => ASEQs(bsq ++ bs, r1, r2)
-    case AFROMs(bsq, r, n) => AFROMs(bsq++bs, r, n)
-    case ABETWEENs(bsq, r, n, m) => ABETWEENs(bsq++bs, r, n, m)
-    case ANOTs(bsq, r) => ANOTs(bsq++bs, r)
+    case ASEQ(bsq, r1, r2) => ASEQ(bsq ++ bs, r1, r2)
+    case AFROM(bsq, r, n) => AFROM(bsq++bs, r, n)
+    case ABETWEEN(bsq, r, n, m) => ABETWEEN(bsq++bs, r, n, m)
+    case ANOT(bsq, r) => ANOT(bsq++bs, r)
 }
 
-def fuse(bs: Bits, r: ARexps) : ARexps = r match {
-    case AZEROs => AZEROs
-    case AONEs(bsq) => AONEs(bs ++ bsq)
-    case ACHARs(bsq, c) => ACHARs(bs ++ bsq, c)
+def fuse(bs: Bits, r: ARexp) : ARexp = r match {
+    case AZERO => AZERO
+    case AONE(bsq) => AONE(bs ++ bsq)
+    case ACHAR(bsq, c) => ACHAR(bs ++ bsq, c)
     case AALTs(bsq, ls) => AALTs(bs ++ bsq, ls)
-    case ASEQs(bsq, r1, r2) => ASEQs(bs ++ bsq, r1, r2)
-    case AFROMs(bsq, r, n) => AFROMs(bs++bsq, r, n)
-    case ABETWEENs(bsq, r, n, m) => ABETWEENs(bs++bsq, r, n, m)
-    case ANOTs(bsq, r) => ANOTs(bs++bsq, r)
+    case ASEQ(bsq, r1, r2) => ASEQ(bs ++ bsq, r1, r2)
+    case AFROM(bsq, r, n) => AFROM(bs++bsq, r, n)
+    case ABETWEEN(bsq, r, n, m) => ABETWEEN(bs++bsq, r, n, m)
+    case ANOT(bsq, r) => ANOT(bs++bsq, r)
 }
 
-def delete(r: ARexps): Rexp = r match{
-    case AZEROs => ZERO
-    case AONEs(_) => ONE
-    case ACHARs(_, c) => CHAR(c)
+def erase(r: ARexp): Rexp = r match{
+    case AZERO => ZERO
+    case AONE(_) => ONE
+    case ACHAR(_, c) => CHAR(c)
     case AALTs(bs, Nil) => ZERO
-    case AALTs(bs, head::Nil) => delete(head)
-    case AALTs(bs, head1::head2::tail) => ALT(delete(head1), delete(head2))
-    case AALTs(bs, head::tail) => ALT(delete(head), delete(AALTs(bs, tail)))
-    case ASEQs(_, r1, r2) => SEQ(delete(r1), delete(r2))
-    case AFROMs(bsq, r, n) => FROM(delete(r), n)
-    case ABETWEENs(bsq, r, n, m) => BETWEEN(delete(r), n, m)
-    case ANOTs(bsq, r) => NOT(delete(r))
+    case AALTs(bs, head::Nil) => erase(head)
+    case AALTs(bs, head1::head2::tail) => ALT(erase(head1), erase(head2))
+    case AALTs(bs, head::tail) => ALT(erase(head), erase(AALTs(bs, tail)))
+    case ASEQ(_, r1, r2) => SEQ(erase(r1), erase(r2))
+    case AFROM(bsq, r, n) => FROM(erase(r), n)
+    case ABETWEEN(bsq, r, n, m) => BETWEEN(erase(r), n, m)
+    case ANOT(bsq, r) => NOT(erase(r))
 }
 
-def mkeps(r: ARexps) : Bits = r match {
-    case AONEs(bs) => bs
-    case AALTs(bs, ls) => val matched = ls.find(x => nullable(x)).getOrElse(AZEROs); bs ++ mkeps(matched)
-    case ASEQs(bs, r1, r2) => bs ++ mkeps(r1) ++ mkeps(r2)
-    case AFROMs(bs, r, n) => bs ++ S
-    case ABETWEENs(bs, r, n, m) => bs ++ S
-    case ANOTs(bs, r) => bs ++ S
+def mkeps(r: ARexp) : Bits = r match {
+    case AONE(bs) => bs
+    case AALTs(bs, ls) => val matched = ls.find(x => nullable(x)).getOrElse(AZERO); bs ++ mkeps(matched)
+    case ASEQ(bs, r1, r2) => bs ++ mkeps(r1) ++ mkeps(r2)
+    case AFROM(bs, r, n) => bs ++ S
+    case ABETWEEN(bs, r, n, m) => bs ++ S
+    case ANOT(bs, r) => bs ++ mkeps(r)
 }
 
-def der(r: ARexps, c: Char) : ARexps = r match {
-    case AZEROs => AZEROs
-    case AONEs(_) => AZEROs
-    case ACHARs(bs, d) => if(d == c) AONEs(bs) else AZEROs
+def der(r: ARexp, c: Char) : ARexp = r match {
+    case AZERO => AZERO
+    case AONE(_) => AZERO
+    case ACHAR(bs, d) => if(d == c) AONE(bs) else AZERO
     case AALTs(bs, ls) => AALTs(bs, ls.map(x => der(x, c)))
-    case ASEQs(bs, r1, r2) => if(nullable(r1)) 
-                                 AALTs(bs, List(ASEQs(List(), der(r1, c), r2), fuse(mkeps(r1), der(r2, c))))
-                            else ASEQs(bs, der(r1, c), r2)
-    case AFROMs(bs, r, i) =>
-        if(i == 0) ASEQs(bs, fuse(Z, der(r, c)), AFROMs(List(), r, 0)) 
-        else ASEQs(bs, fuse(Z, der(r, c)), AFROMs(List(), r, i-1))
-    case ABETWEENs(bs, r, i, j) => (i, j) match {
-        case(0, 0) => AZEROs
-        case(0, i) => ASEQs(bs, fuse(Z, der(r, c)), ABETWEENs(List(), r, 0, i - 1))
-        case(i, j) => ASEQs(bs, fuse(Z, der(r, c)), ABETWEENs(List(), r, i - 1, j - 1))
+    case ASEQ(bs, r1, r2) => if(nullable(r1)) 
+                                 AALTs(bs, List(ASEQ(List(), der(r1, c), r2), fuse(mkeps(r1), der(r2, c))))
+                            else ASEQ(bs, der(r1, c), r2)
+    case AFROM(bs, r, i) => {
+        if(i == 0) ASEQ(bs, fuse(Z, der(r, c)), AFROM(List(), r, 0)) 
+        else ASEQ(bs, fuse(Z, der(r, c)), AFROM(List(), r, i-1))
     }
-    case ANOTs(bs, r) => ANOTs(bs, der(r, c))
-}
-
-def rmvZeroDup(ls: List[ARexps], set: Set[Rexp]): List[ARexps] = ls match{
-    case Nil => List()
-    case head::Nil =>  head match {
-        case AZEROs => List()
-        case _ => if(!(set contains delete(head))) List(head) 
-                    else List()
+    case ABETWEEN(bs, r, i, j) => (i, j) match {
+        case(0, 0) => AZERO
+        case(0, i) => ASEQ(bs, fuse(Z, der(r, c)), ABETWEEN(List(), r, 0, i - 1))
+        case(i, j) => ASEQ(bs, fuse(Z, der(r, c)), ABETWEEN(List(), r, i - 1, j - 1))
     }
-    case head::tail => head match {
-        case AZEROs => rmvZeroDup(tail, set)
-        case _ => if(!(set contains delete(head)))
-            List(head) ++ rmvZeroDup(tail, set ++ Set(delete(head)))
-            else rmvZeroDup(tail, set)
-    }
+    case ANOT(bs, r) => ANOT(bs, der(r, c))
 }
 
-def getLs(r: ARexps): List[ARexps] = r match {
-    case AALTs(bs, ls) => flatten_alt(ls.map(e => fuse(bs, e)))
-    case r => List(r)
-}
-
-def flatten_alt(ls: List[ARexps]) : List[ARexps] = ls match {
-    case Nil => List()
-    case head::Nil => getLs(head)
-    case head::tail => getLs(head) ++ flatten_alt(tail)
-}
-
-def emptyBsq(r: ARexps) : ARexps = r match {
-    case AZEROs => AZEROs
-    case AONEs(_) => AONEs(List())
-    case ACHARs(_, c) => ACHARs(List(), c)
+def emptyBsq(r: ARexp) : ARexp = r match {
+    case AZERO => AZERO
+    case AONE(_) => AONE(List())
+    case ACHAR(_, c) => ACHAR(List(), c)
     case AALTs(_, ls) => AALTs(List(), ls)
-    case ASEQs(_, r1, r2) => ASEQs(List(), r1, r2)
-    case AFROMs(bsq, r, n) => AFROMs(List(), r, n)
-    case ABETWEENs(bsq, r, n, m) => ABETWEENs(List(), r, n, m)
-    case ANOTs(bsq, r) => ANOTs(List(), r)
+    case ASEQ(_, r1, r2) => ASEQ(List(), r1, r2)
+    case AFROM(bsq, r, n) => AFROM(List(), r, n)
+    case ABETWEEN(bsq, r, n, m) => ABETWEEN(List(), r, n, m)
+    case ANOT(bsq, r) => ANOT(List(), r)
 }
 
-def getBsq(r: ARexps) = r match{
-    case AZEROs => List()
-    case AONEs(bsq) => bsq
-    case ACHARs(bsq, _) => bsq
+def getBsq(r: ARexp) = r match{
+    case AZERO => List()
+    case AONE(bsq) => bsq
+    case ACHAR(bsq, _) => bsq
     case AALTs(bsq, _) => bsq
-    case ASEQs(bsq, _, _) => bsq
-    case AFROMs(bsq, r, n) => bsq
-    case ABETWEENs(bsq, r, n, m) => bsq
-    case ANOTs(bsq, r) => bsq
+    case ASEQ(bsq, _, _) => bsq
+    case AFROM(bsq, r, n) => bsq
+    case ABETWEEN(bsq, r, n, m) => bsq
+    case ANOT(bsq, r) => bsq
 }
 
-def multiplyRight(ls: List[ARexps], r: ARexps) : List[ARexps] = {
-    for(r1 <- ls) yield ASEQs(getBsq(r1), emptyBsq(r1), r)
+def multiplyRight(ls: List[ARexp], r: ARexp) : List[ARexp] = {
+    for(r1 <- ls) yield ASEQ(getBsq(r1), emptyBsq(r1), r)
 }
 
-def multiplyLeft(r: ARexps, ls: List[ARexps]) : List[ARexps] = {
-   for(r1 <- ls) yield ASEQs(getBsq(r1), r, emptyBsq(r1))
+def multiplyLeft(r: ARexp, ls: List[ARexp]) : List[ARexp] = {
+   for(r1 <- ls) yield ASEQ(getBsq(r1), r, emptyBsq(r1))
 }
 
-def multiply(ls1: List[ARexps], ls2: List[ARexps]) = {
-    for(r1 <- ls1; r2 <- ls2) yield ASEQs(getBsq(r1)++getBsq(r2), emptyBsq(r1), emptyBsq(r2))
+def multiply(ls1: List[ARexp], ls2: List[ARexp]) = {
+    for(r1 <- ls1; r2 <- ls2) yield ASEQ(getBsq(r1)++getBsq(r2), emptyBsq(r1), emptyBsq(r2))
 }
 
-def simp(r: ARexps) : ARexps = r match {
-    case ASEQs(bs, r1, r2) =>  (simp(r1), simp(r2)) match {
-        case (AZEROs, _) => AZEROs
-        case (_, AZEROs) => AZEROs
-        case (AONEs(bs1), r2s) => fuse(bs++bs1, r2s)
-        case (r1s, AONEs(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
-        case (AALTs(bs1, ls1), AALTs(bs2, ls2)) => AALTs(bs++bs1++bs2, multiply(ls1, ls2))
-        case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
-        case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
-        //case (AFROMs(bs1, r1, n1))
-        case (r1s, r2s) => ASEQs(bs, r1s, r2s)
+def simp_bounded(r: ARexp) : Rexp = r match {
+    case AFROM(bs, r1, n) => FROM(erase(r1), 0)
+    case ABETWEEN(bs, r1, n, m) => BETWEEN(erase(r1), 0, 0)
+    case _ => erase(r)
+}
+
+def getLowerBound(r: ARexp) : Int = r match {
+    case AFROM(bs, r, n) => n
+    case ABETWEEN(bs, r, n, m) => n
+    case _ => 0
+}
+
+def getUpperBound(r: ARexp) : Int = r match {
+    case ABETWEEN(bs, r, n, m) => m
+    case _ => 0
+}
+
+def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = rs match {
+    case Nil => (Nil, s)
+    case AZERO :: rs => simp_list_aux(rs, s)
+    case AALTs(bs, rs1) :: rs => {
+        val (list, set) = simp_list_aux(rs, s)
+        (rs1.map(fuse(bs, _)) ++ list , set)
     }
-    case AALTs(bs, ls) => ls match {
-        case Nil => AZEROs
-        case head::Nil => fuse(bs, head)
-        case head::tail => {
-            val newL = rmvZeroDup(flatten_alt(List(head)++tail), Set()).map(simp(_))
-            AALTs(bs, newL)
+    /*case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
+        case Some(r1) => {
+            val min = List(n, getLowerBound(r1)).min
+            val newSet = (s -- Set(r1)) ++ Set(AFROM(bs, r, min))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (AFROM(bs, r, min) :: list , set) 
+        }
+        case None => {
+            val newSet = (s ++ Set(AFROM(bs, r, n)))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (AFROM(bs, r, n) :: list, set)
         }
     }
-    case AFROMs(bs, r, n) => AFROMs(bs, simp(r), n)
-    case ABETWEENs(bs, r, n, m) => ABETWEENs(bs, simp(r), n, m)
+    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
+        case Some(r1) => {
+            val min = List(n, getLowerBound(r1)).min
+            val max = List(m, getUpperBound(r1)).max
+            val newSet = (s -- Set(r1)) ++ Set(ABETWEEN(bs, r, min, max))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (ABETWEEN(bs, r, min, max) :: list , set) 
+        }
+        case None => {
+            val newSet = (s ++ Set(ABETWEEN(bs, r, n, m)))
+            val (list, set) = simp_list_aux(rs, newSet)
+            (ABETWEEN(bs, r, n, m) :: list, set)
+        }
+    }*/
+    case r1 :: rs => {
+        val (list, set) = simp_list_aux(rs, s)
+        (r1 :: list, set)
+    }
+}
+
+def handle_bounded(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
+    case Nil => Nil
+    /*case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
+        case Some(r1) => AFROM(bs, r, getLowerBound(r1)) :: handle_bounded(rs, s)
+        case None => AFROM(bs, r, n) :: handle_bounded(rs, s)
+    }
+    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
+        case Some(r1) => ABETWEEN(bs, r, getLowerBound(r1), getUpperBound(r1)) :: handle_bounded(rs, s)
+        case None => ABETWEEN(bs, r, n, m) :: handle_bounded(rs, s)
+    }*/
+    case r :: rs => r :: rs
+}
+
+def simp_list(rs: List[ARexp]) : List[ARexp] = {
+    val (list, set) = simp_list_aux(rs, Set())
+    handle_bounded(list, set)
+}
+
+def distinctBy[B, C](xs: List[B], 
+                     f: B => C, 
+                     acc: List[C] = Nil): List[B] = xs match {
+  case Nil => Nil
+  case x::xs => {
+    val res = f(x)
+    if (acc.contains(res)) distinctBy(xs, f, acc)
+    else x::distinctBy(xs, f, res::acc)
+  }
+} 
+
+def simp(r: ARexp) : ARexp = r match {
+    case ASEQ(bs, r1, r2) =>  (simp(r1), simp(r2)) match {
+        case (AZERO, _) => AZERO
+        case (_, AZERO) => AZERO
+        case (AONE(bs1), r2s) => fuse(bs++bs1, r2s)
+        case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
+        case (AALTs(bs1, ls1), AALTs(bs2, ls2)) => AALTs(bs++bs1++bs2, multiply(ls1, ls2))
+        case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
+        //case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
+        case (r1s, r2s) => ASEQ(bs, r1s, r2s)
+    }
+    case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp)), erase) match {
+        case Nil => AZERO
+        case head::Nil => fuse(bs, head)
+        case ls => AALTs(bs, ls)
+    }
+    case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
+    case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
     case r => r
 }
 
-def internalise(r: Rexp) : ARexps = r match {
-    case ZERO => AZEROs
-    case ONE => AONEs(List())
-    case CHAR(c) => ACHARs(List(), c)
+def internalise(r: Rexp) : ARexp = r match {
+    case ZERO => AZERO
+    case ONE => AONE(List())
+    case CHAR(c) => ACHAR(List(), c)
     case ALT(r1, r2) => AALTs(List(), List(fuse(Z, internalise(r1)), 
                                                     fuse(S, internalise(r2))))
-    case SEQ(r1, r2) => ASEQs(List(), internalise(r1), internalise(r2))
-    case FROM(r, n) => AFROMs(List(), internalise(r), n)
-    case BETWEEN(r, n, m) => ABETWEENs(List(), internalise(r), n, m)
-    case NOT(r) => ANOTs(List(), internalise(r))
+    case SEQ(r1, r2) => ASEQ(List(), internalise(r1), internalise(r2))
+    case FROM(r, n) => AFROM(List(), internalise(r), n)
+    case BETWEEN(r, n, m) => ABETWEEN(List(), internalise(r), n, m)
+    case NOT(r) => ANOT(List(), internalise(r))
 }
 
 def charlist2rexp(s: List[Char]): Rexp = s match {
@@ -300,7 +359,8 @@ implicit def stringOps(s: String) = new {
     def % (n: Int, m: Int) = BETWEEN(s, n, m)
 }
 
-def lex(r: ARexps, s: List[Char]) : Bits = s match {
+@tailrec
+def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case Nil => if(nullable(r)) mkeps(r) else throw new Exception("Not matched")
     case c::cs => lex(simp(der(r, c)), cs)
 }
@@ -320,15 +380,15 @@ def flatten(v: Val) : String = v match {
 
 def getString(r: Rexp, bs: Bits) = flatten(decode(r, bs))
 
-def size(r: ARexps) : Int = r match {
-    case AZEROs => 1
-    case AONEs(_) => 1
-    case ACHARs(_, _) => 1
+def size(r: ARexp) : Int = r match {
+    case AZERO => 1
+    case AONE(_) => 1
+    case ACHAR(_, _) => 1
     case AALTs(_, ls) => 1 + ls.map(size(_)).sum
-    case ASEQs(_, r1, r2) => 1 + size(r1) + size(r2)
-    case AFROMs(_, r, n) => 1 + size(r)
-    case ABETWEENs(_, r, n, m) => 1 + size(r)
-    case ANOTs(_, r) => 1 + size(r)
+    case ASEQ(_, r1, r2) => 1 + size(r1) + size(r2)
+    case AFROM(_, r, n) => 1 + size(r)
+    case ABETWEEN(_, r, n, m) => 1 + size(r)
+    case ANOT(_, r) => 1 + size(r)
 }
 
 // for measuring time
@@ -346,32 +406,55 @@ def test(r: Rexp, s: String) = {
 
 ///tests
 
-//(a + e)*
+val reg0 = ("a"%(1, 2) | "x")>2
 val reg1 = ("a"|"e")%
-test(reg1, "aaaeee")
-test(reg1, "")
-test(reg1, "aa")
-test(reg1, "ee")
-
-
-//(a{2,..} ~ b)*
-val reg12 = (("a">2) ~ "b")%
-test(reg12, "aab")
-
-//( a{2,4}? ~ (c+d))*
 val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))%
-test(reg2, "aacdaaad")
-test(reg2, "cdcdcdcddd")
+test(reg2, "")
+test(reg2, "c")
 test(reg2, "aac")
 
-//(a{1,2} + x){2, ..}
-val reg0 = ("a"%(1, 2) | "x")>2
-test(reg0, "aaxaa")
-test(reg0, "xx")
-test(reg0, "aaa")
+val reg3 = (((("a")?)%(2,3))~("b"|"c"))%
+val reg3_1 = (((("a")?)%(2,3))~("b"))%
+val reg4 = ((("ab")?)%(1,2))%
+val reg5 = (((("ab")?)%(1,2)) ~ "c")%
+val reg6 = ((("a")?) ~ ("b" | "c"))
+val reg7 = (("a"%(1, 2)) | ("b"%(1, 2)))%
+val reg8 = ("a"|"c")%
+val reg9 = (("a") ~ ("b" | "c"))%
+val reg10 = (("a"?) ~ ("b" | "c"))%
+val reg11 = (("a"%) ~ ("b" | "c"))%
+val reg12 = (("a"<2) ~ "b")%
 
+val reg13 = ((("a")%) ~ ("b" | "c"))%
+test(reg13, "baacaaacbcbaab")
 
-val r1_s1 = "aaaeeeaeaeaeaaeee"
-val r2_s1 = "aaaac"
+val r1f = FROM("a", 0)
+val r2f = FROM("a", 1)
+val r3f = FROM("a", 3)
+val r4f = FROM("a", 2)
 
+val testRegF = ALT(r1f, ALT(r2f, ALT(r3f, r4f)))
 
+internalise(testRegF)
+simp(internalise(testRegF))
+
+val testF = internalise(testRegF)
+
+val (list, set) = simp_list_aux(getAlts(testF), Set())
+handle_bounded(list, set)
+
+val r1b = BETWEEN("a", 2, 3)
+val r2b = BETWEEN("a", 3, 7)
+val r3b = BETWEEN("a", 0 , 6)
+
+val testRegB = ALT(r1b, ALT(r2b, r3b))
+val testB = internalise(testRegB)
+
+simp_list_aux(getAlts(testB), Set())
+
+simp(internalise(testRegB))
+
+def getAlts(r: ARexp) : List[ARexp] = r match {
+    case AALTs(_, rs) => rs
+    case _ => Nil
+}
