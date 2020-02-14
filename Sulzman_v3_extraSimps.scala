@@ -181,9 +181,9 @@ def getBsq(r: ARexp) = r match{
     case ACHAR(bsq, _) => bsq
     case AALTs(bsq, _) => bsq
     case ASEQ(bsq, _, _) => bsq
-    case AFROM(bsq, r, n) => bsq
-    case ABETWEEN(bsq, r, n, m) => bsq
-    case ANOT(bsq, r) => bsq
+    case AFROM(bsq, _, _) => bsq
+    case ABETWEEN(bsq, _, _, _) => bsq
+    case ANOT(bsq, _) => bsq
 }
 
 def multiplyRight(ls: List[ARexp], r: ARexp) : List[ARexp] = {
@@ -292,7 +292,7 @@ def simp(r: ARexp) : ARexp = r match {
         case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
         case (AALTs(bs1, ls1), AALTs(bs2, ls2)) => AALTs(bs++bs1++bs2, multiply(ls1, ls2))
         case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
-        //case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
+        case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
         case (r1s, r2s) => ASEQ(bs, r1s, r2s)
     }
     case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp)), erase) match {
@@ -365,7 +365,7 @@ def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case c::cs => lex(simp(der(r, c)), cs)
 }
 
-def lexer(r: Rexp, s: String) : Bits = lex(internalise(r), s.toList)
+def lexer(r: Rexp, s: String) : Bits = lex(simp(internalise(r)), s.toList)
 
 def flatten(v: Val) : String = v match {
     case Empty => ""
@@ -406,8 +406,19 @@ def test(r: Rexp, s: String) = {
 
 ///tests
 
-val reg0 = ("a"%(1, 2) | "x")>2
+val reg0 = (("a" | "b") ~ (("c")%))>0
+test(reg0, "acbcbcb")
+test(reg0, "a")
+test(reg0, "ababcbbbbccccccccca")
+
 val reg1 = ("a"|"e")%
+test(reg1, "")
+test(reg1, "a")
+test(reg1, "e")
+test(reg1, "aaaa")
+test(reg1, "eeee")
+test(reg1, "aeaeaeaeaeae")
+
 val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))%
 test(reg2, "")
 test(reg2, "c")
@@ -427,6 +438,12 @@ val reg12 = (("a"<2) ~ "b")%
 
 val reg13 = ((("a")%) ~ ("b" | "c"))%
 test(reg13, "baacaaacbcbaab")
+
+val reg14 = (("a" | "b") ~ (("c")%))%
+test(reg14, "acbcbcb")
+test(reg14, "a")
+test(reg14, "ababcbbbbccccccccca")
+
 
 val r1f = FROM("a", 0)
 val r2f = FROM("a", 1)
@@ -458,3 +475,6 @@ def getAlts(r: ARexp) : List[ARexp] = r match {
     case AALTs(_, rs) => rs
     case _ => Nil
 }
+
+val x1 = ((("a")) ~ ("b" | "c"))%
+val x2 = ((("a")%) ~ ("b" | "c"))%
