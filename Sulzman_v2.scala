@@ -304,7 +304,7 @@ def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case c::cs => lex(simp(der(r, c)), cs)
 }
 
-def lexer(r: Rexp, s: String) : Bits = lex(internalise(r), s.toList)
+def lexer(r: Rexp, s: String) : Bits = lex(simp(internalise(r)), s.toList)
 
 def flatten(v: Val) : String = v match {
     case Empty => ""

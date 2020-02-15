@@ -10,23 +10,31 @@ case class ALT(r1: Rexp, r2: Rexp) extends Rexp
 case class SEQ(r1: Rexp, r2: Rexp) extends Rexp 
 case class STAR(r: Rexp) extends Rexp 
 
+abstract class Bit
+case object S extends Bit
+case object Z extends Bit
+
+type Bits = List[Bit]
+
+implicit def bit2bits(b: Bit) : Bits = List(b)
+
 abstract class ARexps
 case object AZEROs extends ARexps
-case class AONEs(bs: List[Boolean]) extends ARexps
-case class ACHARs(bs: List[Boolean], c: Char) extends ARexps
-case class AALTs(bs: List[Boolean], l: List[ARexps]) extends ARexps
-case class ASEQs(bs: List[Boolean], r1: ARexps, r2: ARexps) extends ARexps
-case class ASTARs(bs: List[Boolean], r: ARexps) extends ARexps
+case class AONEs(bs: Bits) extends ARexps
+case class ACHARs(bs: Bits, c: Char) extends ARexps
+case class AALTs(bs: Bits, l: List[ARexps]) extends ARexps
+case class ASEQs(bs: Bits, r1: ARexps, r2: ARexps) extends ARexps
+case class ASTARs(bs: Bits, r: ARexps) extends ARexps
 
 abstract class GARexps
 case class GAZEROs(index : Int) extends GARexps
-case class GAONEs(index: Int, bs: List[Boolean]) extends GARexps
-case class GACHARs(index: Int, bs: List[Boolean], c: Char) extends GARexps
-case class GAALTs(index: Int, bs: List[Boolean], l: List[GARexps]) extends GARexps
-case class GASEQs(index: Int, bs: List[Boolean], r1: GARexps, r2: GARexps) extends GARexps
-case class GASTARs(index: Int, bs: List[Boolean], r: GARexps) extends GARexps
+case class GAONEs(index: Int, bs: Bits) extends GARexps
+case class GACHARs(index: Int, bs: Bits, c: Char) extends GARexps
+case class GAALTs(index: Int, bs: Bits, l: List[GARexps]) extends GARexps
+case class GASEQs(index: Int, bs: Bits, r1: GARexps, r2: GARexps) extends GARexps
+case class GASTARs(index: Int, bs: Bits, r: GARexps) extends GARexps
 
-def fuse(bs: List[Boolean], r: ARexps) : ARexps = r match {
+def fuse(bs: Bits, r: ARexps) : ARexps = r match {
     case AZEROs => AZEROs
     case AONEs(bsq) => AONEs(bs ++ bsq)
     case ACHARs(bsq, c) => ACHARs(bs ++ bsq, c)
@@ -35,23 +43,12 @@ def fuse(bs: List[Boolean], r: ARexps) : ARexps = r match {
     case ASTARs(bsq, r) => ASTARs(bs ++ bsq, r)
 }
 
-def getLs(r: ARexps): List[ARexps] = r match {
-    case AALTs(bs, ls) => flatten_alt(ls.map(e => fuse(bs, e)))
-    case r => List(r)
-}
-
-def flatten_alt(ls: List[ARexps]) : List[ARexps] = ls match {
-    case Nil => List()
-    case head::Nil => getLs(head)
-    case head::tail => getLs(head) ++ flatten_alt(tail)
-}
-
 def internalise(r: Rexp) : ARexps = r match {
     case ZERO => AZEROs
     case ONE => AONEs(List())
     case CHAR(c) => ACHARs(List(), c)
-    case ALT(r1, r2) => AALTs(List(), List(fuse(List(false), internalise(r1)), 
-                                                    fuse(List(true), internalise(r2))))
+    case ALT(r1, r2) => AALTs(List(), List(fuse(Z, internalise(r1)), 
+                                                    fuse(S, internalise(r2))))
     case SEQ(r1, r2) => ASEQs(List(), internalise(r1), internalise(r2))
     case STAR(r) => ASTARs(List(), internalise(r))
 }
@@ -82,11 +79,9 @@ implicit def stringOps(s: String) = new {
 
 val test = (("a"~"b") | ("c"))% 
 
-val test1 = fuse(List(true, true, false), internalise(test))
-
-def bsToString(ls: List[Boolean]) : String = ls match {
+def bsToString(ls: Bits) : String = ls match {
     case Nil => ""
-    case head::tail => if(head) "1" + bsToString(tail)
+    case head::tail => if(head == S) "1" + bsToString(tail)
                         else "0" + bsToString(tail)
 }
 
@@ -106,6 +101,8 @@ def node(r: ARexps, index: Int) : String = {
 def edge(index1: Int, index2: Int) : String = {
     "dot.edge(\'" + index1 + "\', \'" + index2 + "\')"
 }
+
+var index = -1
 
 def g_internalise(r: ARexps) : GARexps = {index+=1; r match {
     case AZEROs => GAZEROs(index)
@@ -160,16 +157,23 @@ def getEdgeCode(g: GARexps, parent: Int) : String = {
 
 def getPythonCode(g: GARexps) : String = getNodesCode(g) + "\n" + getEdgeCode(g, 0) + "\n"
 
-val x0 = "from graphviz import Digraph" + "\n" + "dot = Digraph(comment='The Round Table')" + "\n"
+def writeCode(r: Rexp) = {
+    val x0 = "from graphviz import Digraph" + "\n" + "dot = Digraph(comment='The Round Table')" + "\n"
 
-val x1 = getPythonCode(getGraph(test1))
+    val x1 = getPythonCode(getGraph(internalise(test)))
 
-val x2 = "dot.render(\'trees/round-table.gv\', view=True)"
+    val x2 = "dot.render(\'trees/round-table.gv\', view=True)"
 
-val string = x0+x1+x2
+    val string = x0+x1+x2
 
-// PrintWriter
-import java.io._
-val pw = new PrintWriter(new File("code.py" ))
-pw.write(string)
-pw.close
+    // PrintWriter
+    import java.io._
+    val pw = new PrintWriter(new File("code.py" ))
+    pw.write(string)
+    pw.close
+}
+
+val regex = ("a")%
+
+
+
