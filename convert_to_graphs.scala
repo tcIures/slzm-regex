@@ -152,7 +152,7 @@ def writeCode(r: ARexp, i: Int) = {
 
     val x1 = getPythonCode(getGraph(r))
 
-    val x2 = "dot.render(\'left-multiply-bug/it" + i + ".gv\', view=True)"
+    val x2 = "dot.render(\'left-right-multiply-bug/it" + i + ".gv\', view=True)"
 
     val string = x0+x1+x2
 
@@ -163,7 +163,7 @@ def writeCode(r: ARexp, i: Int) = {
     pw.close
 }
 
-val regex = ((("a")%) ~ ("b" | "c"))%
+val regex  = (("a" | "b") ~ ("c" | "d")) %
 
 
 val reg = internalise(regex)
@@ -171,16 +171,24 @@ val reg = internalise(regex)
 val it0 = simp(reg)
 val it1 = der(it0, 'a')
 val it10 = simp(it1)
-val it2 = der(it10, 'b')
+val it2 = der(it10, 'c')
 val it20 = simp(it2)
-val it200 =simp(it20)
+val it3 = der(it20, 'b')
+val it30 = simp(it3)
+val it4 = der(it30, 'd')
+val it40 = simp(it4)
+
 
 writeCode(it0, 0)
 writeCode(it1, 1)
 writeCode(it10, 10)
 writeCode(it2, 2)
 writeCode(it20, 20)
-writeCode(it200, 200)
+writeCode(it3, 3)
+writeCode(it30, 30)
+writeCode(it4, 4)
+writeCode(it40, 40)
+
 
 
 

@@ -76,7 +76,6 @@ def erase(r: ARexp): Rexp = r match{
     case ACHAR(_, c) => CHAR(c)
     case AALTs(bs, Nil) => ZERO
     case AALTs(bs, head::Nil) => erase(head)
-    case AALTs(bs, head1::head2::tail) => ALT(erase(head1), erase(head2))
     case AALTs(bs, head::tail) => ALT(erase(head), erase(AALTs(bs, tail)))
     case ASEQ(_, r1, r2) => SEQ(erase(r1), erase(r2))
     case ASTAR(_, r1) => STAR(erase(r1))
@@ -154,7 +153,6 @@ def simp(r: ARexp) : ARexp = r match {
         case (_, AZERO) => AZERO
         case (AONE(bs1), r2s) => fuse(bs++bs1, r2s)
         case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
-        case (AALTs(bs1, ls1), AALTs(bs2, ls2)) => AALTs(bs++bs1++bs2, multiply(ls1, ls2))
         case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
         case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
         case (r1s, r2s) => ASEQ(bs, r1s, r2s)
@@ -199,9 +197,6 @@ implicit def stringOps(s: String) = new {
     def ~ (r: String) = SEQ(s, r)
     def % = STAR(s)
 }
-
-implicit def rexp2arexp(r: Rexp) : ARexp = internalise(r)
-implicit def arexp2rexp(r: ARexp) : Rexp = erase(r)
 
 @tailrec
 def lex(r: ARexp, s: List[Char]) : Bits = s match {
@@ -249,4 +244,3 @@ def decode(r: Rexp, bs: Bits) = decode_aux(erase(simp(internalise(r))), bs) matc
     case (v, Nil) => v
     case _ => throw new Exception("Not decodable")
 }
-
