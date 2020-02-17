@@ -39,35 +39,6 @@ case class Left(v: Val) extends Val
 case class Right(v: Val) extends Val
 case class Star(vs: List[Val]) extends Val
 
-def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
-    case (ONE, bs) => (Empty, bs)
-    case (CHAR(c), bs) => (Chr(c), bs)
-    case (ALT(r1, r2), Z::bs) => {
-        val (v, bs1) = decode_aux(r1, bs)
-        (Left(v), bs1)
-    }
-    case (ALT(r1, r2), S::bs) => {
-        val (v, bs1) = decode_aux(r2, bs)
-        (Right(v), bs1)
-    }
-    case (SEQ(r1, r2), bs) => {
-        val (v1, bs1) = decode_aux(r1, bs)
-        val (v2, bs2) = decode_aux(r2, bs1)
-        (Sequ(v1, v2), bs2)
-    }
-    case (STAR(r), Z::bs) => {
-        val (v, bs1) = decode_aux(r, bs)
-        val (Star(vs), bs2) = decode_aux(STAR(r), bs1)
-        (Star(v::vs), bs2)
-    }
-    case (STAR(_), S::bs) => (Star(Nil), bs)
-}
-
-def decode(r: Rexp, bs: Bits) = decode_aux(r, bs) match {
-    case (v, Nil) => v
-    case _ => throw new Exception("Not decodable")
-}
-
 def nullable(r: ARexp) : Boolean = r match {
     case AZERO => false
     case AONE(_) => true
@@ -148,90 +119,22 @@ def getBsq(r: ARexp) = r match{
 }
 
 def multiplyRight(ls: List[ARexp], r: ARexp) : List[ARexp] = {
-    for(r1 <- ls) yield ASEQ(getBsq(r1), emptyBsq(r1), r)
+    for(r1 <- ls) yield ASEQ(getBsq(r1)++getBsq(r), emptyBsq(r1), emptyBsq(r))
 }
 
 def multiplyLeft(r: ARexp, ls: List[ARexp]) : List[ARexp] = {
-   for(r1 <- ls) yield ASEQ(getBsq(r1), r, emptyBsq(r1))
+   for(r1 <- ls) yield ASEQ(getBsq(r)++getBsq(r1), emptyBsq(r), emptyBsq(r1))
 }
 
 def multiply(ls1: List[ARexp], ls2: List[ARexp]) = {
     for(r1 <- ls1; r2 <- ls2) yield ASEQ(getBsq(r1)++getBsq(r2), emptyBsq(r1), emptyBsq(r2))
 }
 
-def simp_bounded(r: ARexp) : Rexp = r match {
-    //case AFROM(bs, r1, n) => FROM(erase(r1), 0)
-    //case ABETWEEN(bs, r1, n, m) => BETWEEN(erase(r1), 0, 0)
-    case _ => erase(r)
-}
-
-def getLowerBound(r: ARexp) : Int = r match {
-    //case AFROM(bs, r, n) => n
-    //case ABETWEEN(bs, r, n, m) => n
-    case _ => 0
-}
-
-def getUpperBound(r: ARexp) : Int = r match {
-    //case ABETWEEN(bs, r, n, m) => m
-    case _ => 0
-}
-
-def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = rs match {
-    case Nil => (Nil, s)
-    case AZERO :: rs => simp_list_aux(rs, s)
-    case AALTs(bs, rs1) :: rs => {
-        val (list, set) = simp_list_aux(rs, s)
-        (rs1.map(fuse(bs, _)) ++ list , set)
-    }
-    /*case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
-        case Some(r1) => {
-            val min = List(n, getLowerBound(r1)).min
-            val newSet = (s -- Set(r1)) ++ Set(AFROM(bs, r, min))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (AFROM(bs, r, min) :: list , set) 
-        }
-        case None => {
-            val newSet = (s ++ Set(AFROM(bs, r, n)))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (AFROM(bs, r, n) :: list, set)
-        }
-    }
-    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
-        case Some(r1) => {
-            val min = List(n, getLowerBound(r1)).min
-            val max = List(m, getUpperBound(r1)).max
-            val newSet = (s -- Set(r1)) ++ Set(ABETWEEN(bs, r, min, max))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (ABETWEEN(bs, r, min, max) :: list , set) 
-        }
-        case None => {
-            val newSet = (s ++ Set(ABETWEEN(bs, r, n, m)))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (ABETWEEN(bs, r, n, m) :: list, set)
-        }
-    }*/
-    case r1 :: rs => {
-        val (list, set) = simp_list_aux(rs, s)
-        (r1 :: list, set)
-    }
-}
-
-def handle_bounded(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
+def simp_list(rs: List[ARexp]) : List[ARexp] = rs match {
     case Nil => Nil
-    /*case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
-        case Some(r1) => AFROM(bs, r, getLowerBound(r1)) :: handle_bounded(rs, s)
-        case None => AFROM(bs, r, n) :: handle_bounded(rs, s)
-    }
-    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
-        case Some(r1) => ABETWEEN(bs, r, getLowerBound(r1), getUpperBound(r1)) :: handle_bounded(rs, s)
-        case None => ABETWEEN(bs, r, n, m) :: handle_bounded(rs, s)
-    }*/
-    case r :: rs => r :: rs
-}
-
-def simp_list(rs: List[ARexp]) : List[ARexp] = {
-    val (list, set) = simp_list_aux(rs, Set())
-    handle_bounded(list, set)
+    case AZERO :: rs => simp_list(rs)
+    case AALTs(bs, rs1) :: rs => rs1.map(fuse(bs, _)) ++ simp_list(rs)
+    case r1 :: rs => r1 :: simp_list(rs)
 }
 
 def distinctBy[B, C](xs: List[B], 
@@ -283,7 +186,6 @@ def charlist2rexp(s: List[Char]): Rexp = s match {
 
 implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
 
- 
 implicit def RegxOps(r: Rexp) = new {
     def | (s: Rexp) = ALT(r, s)
     def ~ (s: Rexp) = SEQ(r, s)
@@ -297,6 +199,9 @@ implicit def stringOps(s: String) = new {
     def ~ (r: String) = SEQ(s, r)
     def % = STAR(s)
 }
+
+implicit def rexp2arexp(r: Rexp) : ARexp = internalise(r)
+implicit def arexp2rexp(r: ARexp) : Rexp = erase(r)
 
 @tailrec
 def lex(r: ARexp, s: List[Char]) : Bits = s match {
@@ -314,3 +219,34 @@ def flatten(v: Val) : String = v match {
     case Sequ(v1, v2) => flatten(v1) + flatten(v2)
     case Star(vs) => vs.map(flatten).mkString
 }
+
+
+def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
+    case (ONE, bs) => (Empty, bs)
+    case (CHAR(c), bs) => (Chr(c), bs)
+    case (ALT(r1, r2), Z::bs) => {
+        val (v, bs1) = decode_aux(r1, bs)
+        (Left(v), bs1)
+    }
+    case (ALT(r1, r2), S::bs) => {
+        val (v, bs1) = decode_aux(r2, bs)
+        (Right(v), bs1)
+    }
+    case (SEQ(r1, r2), bs) => {
+        val (v1, bs1) = decode_aux(r1, bs)
+        val (v2, bs2) = decode_aux(r2, bs1)
+        (Sequ(v1, v2), bs2)
+    }
+    case (STAR(r), Z::bs) => {
+        val (v, bs1) = decode_aux(r, bs)
+        val (Star(vs), bs2) = decode_aux(STAR(r), bs1)
+        (Star(v::vs), bs2)
+    }
+    case (STAR(_), S::bs) => (Star(Nil), bs)
+}
+
+def decode(r: Rexp, bs: Bits) = decode_aux(erase(simp(internalise(r))), bs) match {
+    case (v, Nil) => v
+    case _ => throw new Exception("Not decodable")
+}
+

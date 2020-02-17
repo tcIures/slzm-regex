@@ -1,0 +1,16 @@
+// Iteration: 0
+digraph {
+	0 [label="* : "]
+	1 [label="~ : "]
+	2 [label="* : "]
+	3 [label="a : "]
+	4 [label="+ : "]
+	5 [label="b : 0"]
+	6 [label="c : 1"]
+	0 -> 1
+	1 -> 2
+	2 -> 3
+	1 -> 4
+	4 -> 5
+	4 -> 6
+}
