@@ -45,45 +45,6 @@ case class From(vs: List[Val]) extends Val
 case class Between(vs: List[Val]) extends Val
 case class Not(v: Val) extends Val
 
-def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
-    case (ONE, bs) => (Empty, bs)
-    case (CHAR(c), bs) => (Chr(c), bs)
-    case (ALT(r1, r2), Z::bs) => {
-        val (v, bs1) = decode_aux(r1, bs)
-        (Left(v), bs1)
-    }
-    case (ALT(r1, r2), S::bs) => {
-        val (v, bs1) = decode_aux(r2, bs)
-        (Right(v), bs1)
-    }
-    case (SEQ(r1, r2), bs) => {
-        val (v1, bs1) = decode_aux(r1, bs)
-        val (v2, bs2) = decode_aux(r2, bs1)
-        (Sequ(v1, v2), bs2)
-    }
-    case (FROM(r,_), Z::bs) => {
-        val (v, bs1) = decode_aux(r, bs)
-        val (From(vs), bs2) = decode_aux(FROM(r,0), bs1)
-        (From(v::vs), bs2)
-    }
-    case (FROM(_,_), S::bs) => (From(Nil), bs)
-    case (BETWEEN(r,_,_), Z::bs) => {
-        val (v, bs1) = decode_aux(r, bs)
-        val (Between(vs), bs2) = decode_aux(BETWEEN(r,0,0), bs1)
-        (Between(v::vs), bs2)
-    }
-    case (BETWEEN(_,_,_), S::bs) => (Between(Nil), bs)
-    case (NOT(r), bs) => {
-        val (v, bs1) = decode_aux(r, bs)
-        (Not(v), bs1)
-    }
-}
-
-def decode(r: Rexp, bs: Bits) = decode_aux(r, bs) match {
-    case (v, Nil) => v
-    case _ => throw new Exception("Not decodable")
-}
-
 def nullable(r: ARexp) : Boolean = r match {
     case AZERO => false
     case AONE(_) => true
@@ -181,9 +142,9 @@ def getBsq(r: ARexp) = r match{
     case ACHAR(bsq, _) => bsq
     case AALTs(bsq, _) => bsq
     case ASEQ(bsq, _, _) => bsq
-    case AFROM(bsq, r, n) => bsq
-    case ABETWEEN(bsq, r, n, m) => bsq
-    case ANOT(bsq, r) => bsq
+    case AFROM(bsq, _, _) => bsq
+    case ABETWEEN(bsq, _, _, _) => bsq
+    case ANOT(bsq, _) => bsq
 }
 
 def multiplyRight(ls: List[ARexp], r: ARexp) : List[ARexp] = {
@@ -198,79 +159,11 @@ def multiply(ls1: List[ARexp], ls2: List[ARexp]) = {
     for(r1 <- ls1; r2 <- ls2) yield ASEQ(getBsq(r1)++getBsq(r2), emptyBsq(r1), emptyBsq(r2))
 }
 
-def simp_bounded(r: ARexp) : Rexp = r match {
-    case AFROM(bs, r1, n) => FROM(erase(r1), 0)
-    case ABETWEEN(bs, r1, n, m) => BETWEEN(erase(r1), 0, 0)
-    case _ => erase(r)
-}
-
-def getLowerBound(r: ARexp) : Int = r match {
-    case AFROM(bs, r, n) => n
-    case ABETWEEN(bs, r, n, m) => n
-    case _ => 0
-}
-
-def getUpperBound(r: ARexp) : Int = r match {
-    case ABETWEEN(bs, r, n, m) => m
-    case _ => 0
-}
-
-def simp_list_aux(rs: List[ARexp], s: Set[ARexp]) : (List[ARexp], Set[ARexp]) = rs match {
-    case Nil => (Nil, s)
-    case AZERO :: rs => simp_list_aux(rs, s)
-    case AALTs(bs, rs1) :: rs => {
-        val (list, set) = simp_list_aux(rs, s)
-        (rs1.map(fuse(bs, _)) ++ list , set)
-    }
-    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
-        case Some(r1) => {
-            val min = List(n, getLowerBound(r1)).min
-            val newSet = (s -- Set(r1)) ++ Set(AFROM(bs, r, min))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (AFROM(bs, r, min) :: list , set) 
-        }
-        case None => {
-            val newSet = (s ++ Set(AFROM(bs, r, n)))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (AFROM(bs, r, n) :: list, set)
-        }
-    }
-    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
-        case Some(r1) => {
-            val min = List(n, getLowerBound(r1)).min
-            val max = List(m, getUpperBound(r1)).max
-            val newSet = (s -- Set(r1)) ++ Set(ABETWEEN(bs, r, min, max))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (ABETWEEN(bs, r, min, max) :: list , set) 
-        }
-        case None => {
-            val newSet = (s ++ Set(ABETWEEN(bs, r, n, m)))
-            val (list, set) = simp_list_aux(rs, newSet)
-            (ABETWEEN(bs, r, n, m) :: list, set)
-        }
-    }
-    case r1 :: rs => {
-        val (list, set) = simp_list_aux(rs, s)
-        (r1 :: list, set)
-    }
-}
-
-def handle_bounded(rs: List[ARexp], s: Set[ARexp]) : List[ARexp] = rs match {
+def simp_list(rs: List[ARexp]) : List[ARexp] = rs match {
     case Nil => Nil
-    case AFROM(bs, r, n) :: rs => s.find(simp_bounded(_) == FROM(erase(r), 0)) match {
-        case Some(r1) => AFROM(bs, r, getLowerBound(r1)) :: handle_bounded(rs, s)
-        case None => AFROM(bs, r, n) :: handle_bounded(rs, s)
-    }
-    case ABETWEEN(bs, r, n, m) :: rs => s.find(simp_bounded(_) == BETWEEN(erase(r), 0, 0)) match {
-        case Some(r1) => ABETWEEN(bs, r, getLowerBound(r1), getUpperBound(r1)) :: handle_bounded(rs, s)
-        case None => ABETWEEN(bs, r, n, m) :: handle_bounded(rs, s)
-    }
-    case r :: rs => r :: rs
-}
-
-def simp_list(rs: List[ARexp]) : List[ARexp] = {
-    val (list, set) = simp_list_aux(rs, Set())
-    handle_bounded(list, set)
+    case AZERO :: rs => simp_list(rs)
+    case AALTs(bs, rs1) :: rs => rs1.map(fuse(bs, _)) ++ simp_list(rs)
+    case r1 :: rs => r1 :: simp_list(rs)
 }
 
 def distinctBy[B, C](xs: List[B], 
@@ -365,7 +258,7 @@ def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case c::cs => lex(simp(der(r, c)), cs)
 }
 
-def lexer(r: Rexp, s: String) : Bits = lex(internalise(r), s.toList)
+def lexer(r: Rexp, s: String) : Bits = lex(simp(internalise(r)), s.toList)
 
 def flatten(v: Val) : String = v match {
     case Empty => ""
@@ -378,79 +271,41 @@ def flatten(v: Val) : String = v match {
     case Not(v) => flatten(v)
 }
 
-def getString(r: Rexp, bs: Bits) = flatten(decode(r, bs))
-
-def size(r: ARexp) : Int = r match {
-    case AZERO => 1
-    case AONE(_) => 1
-    case ACHAR(_, _) => 1
-    case AALTs(_, ls) => 1 + ls.map(size(_)).sum
-    case ASEQ(_, r1, r2) => 1 + size(r1) + size(r2)
-    case AFROM(_, r, n) => 1 + size(r)
-    case ABETWEEN(_, r, n, m) => 1 + size(r)
-    case ANOT(_, r) => 1 + size(r)
+def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
+    case (ONE, bs) => (Empty, bs)
+    case (CHAR(c), bs) => (Chr(c), bs)
+    case (ALT(r1, r2), Z::bs) => {
+        val (v, bs1) = decode_aux(r1, bs)
+        (Left(v), bs1)
+    }
+    case (ALT(r1, r2), S::bs) => {
+        val (v, bs1) = decode_aux(r2, bs)
+        (Right(v), bs1)
+    }
+    case (SEQ(r1, r2), bs) => {
+        val (v1, bs1) = decode_aux(r1, bs)
+        val (v2, bs2) = decode_aux(r2, bs1)
+        (Sequ(v1, v2), bs2)
+    }
+    case (FROM(r,_), Z::bs) => {
+        val (v, bs1) = decode_aux(r, bs)
+        val (From(vs), bs2) = decode_aux(FROM(r,0), bs1)
+        (From(v::vs), bs2)
+    }
+    case (FROM(_,_), S::bs) => (From(Nil), bs)
+    case (BETWEEN(r,_,_), Z::bs) => {
+        val (v, bs1) = decode_aux(r, bs)
+        val (Between(vs), bs2) = decode_aux(BETWEEN(r,0,0), bs1)
+        (Between(v::vs), bs2)
+    }
+    case (BETWEEN(_,_,_), S::bs) => (Between(Nil), bs)
+    case (NOT(r), bs) => {
+        val (v, bs1) = decode_aux(r, bs)
+        (Not(v), bs1)
+    }
 }
 
-// for measuring time
-def time_needed[T](i: Int, code: => T) = {
-  val start = System.nanoTime()
-  for (j <- 1 to i) code
-  val end = System.nanoTime()
-  (end - start) / (i * 1.0e9)
-}
-
-def test(r: Rexp, s: String) = {
-    val bs = lexer(r, s)
-    assert(s == getString(r, bs))
-}
-
-///tests
-
-val reg0 = ("a"%(1, 2) | "x")>2
-val reg1 = ("a"|"e")%
-val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))
-val reg3 = (((("a")?)%(2,3))~("b"|"c"))%
-val reg3_1 = (((("a")?)%(2,3))~("b"))%
-val reg4 = ((("ab")?)%(1,2))%
-val reg5 = (((("ab")?)%(1,2)) ~ "c")%
-val reg6 = ((("a")?) ~ ("b" | "c"))
-val reg7 = (("a"%(1, 2)) | ("b"%(1, 2)))%
-val reg8 = ("a"|"c")%
-val reg9 = (("a") ~ ("b" | "c"))%
-val reg10 = (("a"?) ~ ("b" | "c"))%
-val reg11 = (("a"%) ~ ("b" | "c"))%
-val reg12 = (("a"<2) ~ "b")%
-
-val r1f = FROM("a", 0)
-val r2f = FROM("a", 1)
-val r3f = FROM("a", 3)
-val r4f = FROM("a", 2)
-
-val testRegF = ALT(r1f, ALT(r2f, ALT(r3f, r4f)))
-
-internalise(testRegF)
-simp(internalise(testRegF))
-
-val testF = internalise(testRegF)
-
-val (list, set) = simp_list_aux(getAlts(testF), Set())
-handle_bounded(list, set)
-
-val r1b = BETWEEN("a", 2, 3)
-val r2b = BETWEEN("a", 3, 7)
-val r3b = BETWEEN("a", 0 , 6)
-
-val testRegB = ALT(r1b, ALT(r2b, r3b))
-val testB = internalise(testRegB)
-
-simp_list_aux(getAlts(testB), Set())
-
-simp(internalise(testRegB))
-
-val test = internalise(("a">2) | ("a">1) | ("a">4) | ("a"%(2, 3)) | ("a"%(1, 4)))
-simp(test)
-
-def getAlts(r: ARexp) : List[ARexp] = r match {
-    case AALTs(_, rs) => rs
-    case _ => Nil
+def decode(r: Rexp, bs: Bits) = decode_aux(erase(simp(internalise(r))), bs) match {
+    case (v, Nil) => v
+    case _ => throw new Exception("Not decodable")
 }

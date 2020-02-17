@@ -21,15 +21,24 @@ test(reg1, "a")
 test(reg1, "e")
 test(reg1, "aaee")
 
-val reg2 = ((("a"%(2, 4))?) ~ ("c" | "d"))%
+val reg2 = (("a"%(2, 4)) ~ ("c" | "d"))%
 test(reg2, "")
-test(reg2, "c")
-test(reg2, "d")
-test(reg2, "aacd")
-test(reg2, "aaaadddcccaad")
+test(reg2, "aac")
+test(reg2, "aad")
+test(reg2,  "aaac")
+test(reg2, "aaad")
+test(reg2, "aaaac")
+test(reg2, "aaaad")
 
 val reg3 = (((("a")?)%(2,3))~("b"))%
+test(reg3, "")
+test(reg3, "b")
 test(reg3, "aab")
+test(reg3, "aaabaabbbbbaaab")
+
+val reg4 = (((("ab")%(1,2))?) ~ ("c" | "d"))%
+test(reg4, "")
+test(reg4, "abc")
 
 
 val reg4 = ((("ab")?)%(1,2))%
