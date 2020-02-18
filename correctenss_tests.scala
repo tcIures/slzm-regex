@@ -123,3 +123,16 @@ test(reg4, "aaabbbdddee")
 test(reg4, "aaae")
 test(reg4, "bbbe")
 test(reg4, "ddde")
+
+val reg5 = (("a" | "b" | "c" | "d")%) 
+
+flatten(decode(reg5, lexer(reg5, "ad")))
+
+val reg6 = ((("a" | "b" | "c" | "d")%) ~ (("1" | "2" | "3" | "4")%))%
+
+flatten(decode(reg5, lexer(reg6, "aa1")))
+
+
+val evil4 = ((("a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | 
+                        "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y")%) ~ (("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0")%))%
+val evil5 = (evil4%) ~ "@" ~ (evil4) ~ ".com"

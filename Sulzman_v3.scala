@@ -102,7 +102,7 @@ def mkeps(r: ARexp) : Bits = r match {
     case ASEQ(bs, r1, r2) => bs ++ mkeps(r1) ++ mkeps(r2)
     case AFROM(bs, r, n) => bs ++ S
     case ABETWEEN(bs, r, n, m) => bs ++ S
-    case ANOT(bs, r) => bs ++ mkeps(r)
+    case ANOT(bs, r) => bs
 }
 
 def der(r: ARexp, c: Char) : ARexp = r match {
@@ -309,3 +309,8 @@ def decode(r: Rexp, bs: Bits) = decode_aux(erase(simp(internalise(r))), bs) matc
     case (v, Nil) => v
     case _ => throw new Exception("Not decodable")
 }
+
+
+val test = (("b"!))%
+
+val evil3 = (("a"~"a") | ("a"))%
