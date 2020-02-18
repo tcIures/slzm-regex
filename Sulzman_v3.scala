@@ -88,7 +88,6 @@ def erase(r: ARexp): Rexp = r match{
     case ACHAR(_, c) => CHAR(c)
     case AALTs(bs, Nil) => ZERO
     case AALTs(bs, head::Nil) => erase(head)
-    case AALTs(bs, head1::head2::tail) => ALT(erase(head1), erase(head2))
     case AALTs(bs, head::tail) => ALT(erase(head), erase(AALTs(bs, tail)))
     case ASEQ(_, r1, r2) => SEQ(erase(r1), erase(r2))
     case AFROM(bsq, r, n) => FROM(erase(r), n)
@@ -258,7 +257,7 @@ def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case c::cs => lex(simp(der(r, c)), cs)
 }
 
-def lexer(r: Rexp, s: String) : Bits = lex(simp(internalise(r)), s.toList)
+def lexer(r: Rexp, s: String) : Bits = lex(simp(internalise(erase(simp(internalise(r))))), s.toList)
 
 def flatten(v: Val) : String = v match {
     case Empty => ""
@@ -309,8 +308,3 @@ def decode(r: Rexp, bs: Bits) = decode_aux(erase(simp(internalise(r))), bs) matc
     case (v, Nil) => v
     case _ => throw new Exception("Not decodable")
 }
-
-
-val test = (("b"!))%
-
-val evil3 = (("a"~"a") | ("a"))%

@@ -126,7 +126,7 @@ test(reg4, "ddde")
 
 val reg5 = (("a" | "b" | "c" | "d")%) 
 
-flatten(decode(reg5, lexer(reg5, "ad")))
+flatten(decode(reg5, lexer(reg5, "abcdaaabbccdd")))
 
 val reg6 = ((("a" | "b" | "c" | "d")%) ~ (("1" | "2" | "3" | "4")%))%
 
