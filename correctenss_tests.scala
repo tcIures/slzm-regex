@@ -85,6 +85,11 @@ test(reg2, "bbbaaac")
 test(reg2, "abababababc")
 test(reg2, "ababcababccccccccbccccccccaaaabbbbababbccccccccb")
 
+//negative tests
+test_negative(reg2, "d")
+test_negative(reg2, "cccccccccccc")
+test_negative(reg2, "acccccccccccc"*50 + "d")
+
 
 //((a+b)(c+d))*
 val reg3 = (("a" | "b") ~ ("c" | "d")) %
@@ -103,6 +108,11 @@ test(reg3, "acad"*10)
 test(reg3, "adac"*10)
 test(reg3, "bcbd"*10)
 test(reg3, "bdbc"*10)
+
+//negative tests
+test_negative(reg3, "add")
+test_negative(reg3, "bcd")
+test_negative(reg3, "abc")
 
 //((a+b)*d*)*e*
 
@@ -125,14 +135,46 @@ test(reg4, "bbbe")
 test(reg4, "ddde")
 
 val reg5 = (("a" | "b" | "c" | "d")%) 
+test(reg5, "")
+test(reg5, "a")
+test(reg5, "b")
+test(reg5, "c")
+test(reg5, "d")
+test(reg5, "aaaa")
+test(reg5, "bbbb")
+test(reg5, "cccc")
+test(reg5, "ddddd")
+test(reg5, "abcdaaabbccdd")
 
-flatten(decode(reg5, lexer(reg5, "abcdaaabbccdd")))
+val reg6 = ((("a" | "b")%) ~ (("1" | "2" )%))%
+test(reg6, "")
+test(reg6, "a")
+test(reg6, "b")
+test(reg6, "1")
+test(reg6, "2")
+test(reg6, "a1")
+test(reg6, "a2")
+test(reg6, "b1")
+test(reg6, "b2")
+test(reg6, "a1b1")
+test(reg6, "aaaa1")
+test(reg6, "abaaab12121212ab12b12bbb")
+test(reg6, "1212121212aaa")
+test(reg6, "aaaa")
+test(reg6, "bbbb")
+test(reg6, "1111")
 
 val reg6 = ((("a" | "b" | "c" | "d")%) ~ (("1" | "2" | "3" | "4")%))%
+test(reg6, "")
+test(reg6, "a")
+test(reg6, "abcdddcddd")
+test(reg6, "a11")
+test(reg6, "aa11bbcc2233")
 
-flatten(decode(reg5, lexer(reg6, "aa1")))
 
+val reg7 = ((("a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | 
+                        "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | ".")%) ~ 
+                            (("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0")%))%
+val reg8 = (reg7%) ~ "@" ~ (reg7) ~ ".com"
 
-val evil4 = ((("a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | 
-                        "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y")%) ~ (("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0")%))%
-val evil5 = (evil4%) ~ "@" ~ (evil4) ~ ".com"
+test(reg8, "tudor12@gmail.com")
