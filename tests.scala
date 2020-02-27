@@ -1,64 +1,47 @@
-import scala.language.implicitConversions
-import scala.language.reflectiveCalls
-import scala.annotation.tailrec 
-import scala.language.postfixOps  
+class FixedList[A](max: Int) extends Iterable[A] {
 
-//Bitcoded version of Sulzman and Lu's algorithm
-abstract class Rexp
-case object ZERO extends Rexp
-case object ONE extends Rexp
-case class CHAR(c: Char) extends Rexp
-case class ALT(r1: Rexp, r2: Rexp) extends Rexp
-case class SEQ(r1: Rexp, r2: Rexp) extends Rexp
-case class STAR(r: Rexp) extends Rexp
+  val list: ListBuffer[A] = ListBuffer()
 
-abstract class Val
-case object Empty extends Val
-case class Chr(c: Char) extends Val
-case class Sequ(c1: Val, v2: Val) extends Val
-case class Left(v: Val) extends Val
-case class Right(v: Val) extends Val
-case class Stars(vs: List[Val]) extends Val
+  def add (elem: A) : Unit = {
+    if (list.size < max) {
+      list.append(elem)
+    }
+  }
 
-def charlist2rexp(s: List[Char]): Rexp = s match {
-    case Nil => ONE
-    case c::Nil => CHAR(c)
-    case c::s => SEQ(CHAR(c), charlist2rexp(s))
+  override def foreach[U](f: A => U) = list.foreach(f)
+
+  override def iterator = list.iterator
+
 }
 
-implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
-
-implicit def RegxOps(r: Rexp) = new {
-    def | (s: Rexp) = ALT(r, s)
-    def ~ (s: Rexp) = SEQ(r, s)
-    def % = STAR(r)
-}
-
-implicit def stringOps(s: String) = new {
-    def % = STAR(s)
-    def | (r: Rexp) = ALT(s, r)
-    def | (r: String) = ALT(s, r)
-    def ~ (r: Rexp) = SEQ(s, r)
-    def ~ (r: String) = SEQ(s, r)
-   
-}
-
-val reg0 = "a" | "b"
-
-val EVIL2 = SEQ(STAR(STAR(CHAR('a'))), CHAR('b'))
-
-val evil0 = ((("a")%)%) ~ "b"
-
-
-// for measuring time
-def time_needed[T](i: Int, code: => T) = {
-  val start = System.nanoTime()
-  for (j <- 1 to i) code
-  val end = System.nanoTime()
-  (end - start) / (i * 1.0e9)
+def size(r: ARexp) : Int = r match {
+    case AZERO => 1
+    case AONE(_) => 1
+    case ACHAR(_, _) => 1
+    case AALTs(_, ls) => 1 + ls.map(size(_)).sum
+    case ASEQ(_, r1, r2) => 1 + size(r1) + size(r2)
+    case AFROM(_, r, _) => 1 + size(r)
+    case ABETWEEN(_, r, _, _) => 1 + size(r)
 }
 
 
+def lex_info(r: ARexp, s: List[Char], ls: FixedList[Int]) : FixedList[Int] = s match {
+    case Nil => {
+        if(nullable(r)) {
+            ls.add(size(r)) 
+            ls
+        }else throw new Exception("Not matched")
+    }
+    case c::cs => {
+        var newLs = lex_info(simp(der(r, c)), cs, ls)
+        newLs.add(size(r))
+        newLs
+    }
+}
+
+def lexer_info(r: Rexp, s: String, n: Int) : FixedList[Int] = 
+                                lex_info((internalise(erase(normalize(internalise(r))))), s.toList,
+                                     new FixedList[Int](n))
 
 
 

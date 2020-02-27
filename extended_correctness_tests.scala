@@ -38,7 +38,33 @@ test(reg3, "aaabaabbbbbaaab")
 
 val reg4 = (((("ab")%(1,2))?) ~ ("c" | "d"))%
 test(reg4, "")
+test(reg4, "c")
+test(reg4, "d")
+test(reg4, "dcddcdcdccc")
+test(reg4, "cababd")
 test(reg4, "abc")
+
+val reg5 = (((("a")%(1,2))?) ~ ("b" | "c"))%
+test(reg5, "")
+test(reg5, "c")
+test(reg5, "ac")
+
+val reg6 = ((("a"%(1, 2)) | "x") ~ ("b" | "c"))%
+test(reg6, "aab")
+
+val reg7 = ((("a"%) | "b") ~ ("c" | "d"))%
+test(reg7, "acbdac")
+
+flatten(decode(reg7, lexer(reg7, "ac")))
+val reg8 = ("a" | (("b"%)~"e") | "c" | "d")%
+test(reg8, "be")
+test(reg8, "beabbbec")
+
+
+erase(simp(internalise(reg8)))
+
+val reg9 = ((("a"%)~"b") | "c")%
+test(reg9, "abbbaabc")
 
 
 val reg4 = ((("ab")?)%(1,2))%
@@ -50,3 +76,5 @@ val reg9 = (("a") ~ ("b" | "c"))%
 val reg10 = (("a"?) ~ ("b" | "c"))%
 val reg11 = (("a"%) ~ ("b" | "c"))%
 val reg12 = (("a"<2) ~ "b")%
+
+

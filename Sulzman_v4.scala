@@ -248,28 +248,15 @@ def simp(r: ARexp) : ARexp = r match {
         case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
         case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
         case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
-        //case (ABETWEEN(bs2, r2, n2, m2), ABETWEEN(bs3, r3, n3, m3)) =>
-                   // if(r2 == r3) ABETWEEN(bs2++bs3, r2, n2+n3, m2+m3) 
-                   // else 
-        case (r1s, r2s) => ASEQ(bs, simp(r1s), simp(r2s))
+        case (r1s, r2s) => ASEQ(bs, r1s, r2s)
     }
     case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp)), erase) match {
         case Nil => AZERO
         case head::Nil => fuse(bs, head)
         case ls => AALTs(bs, ls)
     }
-    //case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
-    case AFROM(bs, r1, n) => r1 match {
-        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, simp(r2), n*n2)
-        case ABETWEEN(bs2, r2, n2, _) => AFROM(bs++bs2, simp(r2), n*n2)
-        case _ => AFROM(bs, simp(r1), n)
-    }
-    //case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
-    case ABETWEEN(bs, r1, n, m) => r1 match {
-        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, r2, n*n2)
-        case ABETWEEN(bs2, r2, n2, m2) => ABETWEEN(bs++bs2, r2, n*n2, m*m2)
-        case _ => ABETWEEN(bs, r1, n, m)
-    }
+    case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
+    case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
     case r => r
 }
 
@@ -295,7 +282,7 @@ implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
 
 def STAR(r: Rexp) : Rexp = FROM(r, 0)
 def PLUS(r: Rexp) : Rexp = FROM(r, 1)
-def OPTIONAL(r: Rexp) : Rexp = BETWEEN(r, 0, 1)
+def OPTIONAL(r: Rexp) : Rexp = ALT(r, ONE)
 def NTIMES(r: Rexp, n: Int) : Rexp = BETWEEN(r, n, n)
 def UPTO(r: Rexp, n: Int) : Rexp = BETWEEN(r, 0, n)
  
@@ -387,3 +374,4 @@ def decode(r: Rexp, bs: Bits) = decode_aux(erase((normalize(internalise(r)))), b
     case _ => throw new Exception("Not decodable")
 }
 
+ 

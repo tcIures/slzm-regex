@@ -43,15 +43,25 @@ def maxValue(r: Rexp, n: Int) : Int = {
 }
 
 //(a?){n}a{n}
+def evil0(n: Int) : Rexp = (("a"?)%(n)) ~ (("b")%(n))
+def scalaEvil0(n: Int) : Regex = (s"^(a?){$n}b{$n}$$").r
+
+for(i <- 1 to 4000 by 500) {
+    println(i + ": " + time_needed(1, lexer(evil0(i), "a"*i + "b"*i)) + "; " + 
+        time_needed(1, scalaMatch(scalaEvil0(i), "a"*i + "b"*i)))
+}
+
+
+//(a?){n}a{n}
 def evil1(n: Int) : Rexp = (("a"?)%(n)) ~ (("a")%(n))
 
 def scalaEvil1(n: Int) : Regex = (s"^(a?){$n}a{$n}$$").r
 
 
-/*for(i <- 1 to 5000 by 500) {
+for(i <- 1 to 1000 by 200) {
     println(i + ": " + time_needed(1, lexer(evil1(i), "a"*i + "a"*i)) + "; " + 
         time_needed(1, scalaMatch(scalaEvil1(i), "a"*i + "a"*i)))
-}*/
+}
 
 implicit def charlist2Alt(ls: List[Char]) : Rexp = ls match {
     case head::Nil => CHAR(head)
@@ -59,10 +69,9 @@ implicit def charlist2Alt(ls: List[Char]) : Rexp = ls match {
 }
 
 val evil2 = ((("a" | ('b' to 'z').toList)$))%
-flatten(decode(evil2, lexer(evil2, "abc")))
-val scalaEvil2 = "([a-z]+;)*".r
+val scalaEvil2 = "([a-z]+)*".r
 
-for(i <- 0 to 5000 by 500) {
+for(i <- 0 to 1000000 by 100000) {
     println(i + ": " + time_needed(1, sulzmanMatch(evil2, "a"*i+"!")) + "; " + 
         time_needed(1, scalaMatch(scalaEvil2, "a"+"!")))
 }
@@ -86,7 +95,18 @@ for(i <- 500 to 5000 by 500) {
 val evil5 = ("a" | ("a"?))%
 val scalaEvil5 = "(a|(a?))*".r
 
-for(i <- 500 to 3000 by 500) {
+for(i <- 0 to 10000 by 250) {
+    println(i + ": " + time_needed(1, sulzmanMatch(evil5, "a"*i)))
+}
+
+for(i <- 0 to 7500 by 250) {
     println(i + ": " + time_needed(1, sulzmanMatch(evil5, "a"*i)) + "; " + 
         time_needed(1, scalaMatch(scalaEvil5, "a"*i)))
 }
+
+val evil6 = (("a")?)%
+
+for(i <- 0 to 7500 by 250) {
+    println(i + ": " + time_needed(1, sulzmanMatch(evil6, "a"*i)))
+}
+

@@ -192,7 +192,12 @@ def simp(r: ARexp) : ARexp = r match {
         case head::Nil => fuse(bs, head)
         case ls => AALTs(bs, ls)
     }
-    case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
+    //case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
+    case AFROM(bs, r1, n) => r1 match {
+        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, r2, n*n2)
+        case ABETWEEN(bs2, r2, n2) => ABETWEEN(bs++bs2, r2, n*n2)
+        case _ => r1
+    }
     case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
     case r => r
 }
@@ -219,7 +224,7 @@ implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
 
 def STAR(r: Rexp) : Rexp = FROM(r, 0)
 def PLUS(r: Rexp) : Rexp = FROM(r, 1)
-def OPTIONAL(r: Rexp) : Rexp = ALT(r, ONE)
+def OPTIONAL(r: Rexp) : Rexp = BETWEEN(r, 0, 1)
 def NTIMES(r: Rexp, n: Int) : Rexp = BETWEEN(r, n, n)
 def UPTO(r: Rexp, n: Int) : Rexp = BETWEEN(r, 0, n)
  
