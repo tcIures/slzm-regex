@@ -266,9 +266,9 @@ def simp(r: ARexp) : ARexp = r match {
     }
     //case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
     case ABETWEEN(bs, r1, n, m) => r1 match {
-        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, r2, n*n2)
-        case ABETWEEN(bs2, r2, n2, m2) => ABETWEEN(bs++bs2, r2, n*n2, m*m2)
-        case _ => ABETWEEN(bs, r1, n, m)
+        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, simp(r2), n*n2)
+        case ABETWEEN(bs2, r2, n2, m2) => ABETWEEN(bs++bs2, simp(r2), n*n2, m*m2)
+        case _ => ABETWEEN(bs, simp(r1), n, m)
     }
     case r => r
 }

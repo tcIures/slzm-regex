@@ -1,19 +1,51 @@
 
 def getString(r: Rexp, bs: Bits) = flatten(decode(r, bs))
 
-def test(r: Rexp, s: String) = {
+def test(r: Rexp, s: String) : Boolean = {
     val bs = lexer(r, s)
-    assert(s == getString(r, bs))
+    s == getString(r, bs)
+}
+
+def test_negative(r: Rexp, s: String) :  Boolean = {
+    try{
+        lexer(r, s)
+        false
+    }
+    catch{
+        case _ : Throwable => true
+    }
+}
+
+def testList(r: Rexp, ls: List[String]) : Boolean = ls match {
+    case Nil => true
+    case head::tail => if(test(r, head)) testList(r, tail) 
+                            else throw new Exception("Failed for: " + head)
+}
+
+def testList_negative(r: Rexp, ls: List[String]) : Boolean = ls match {
+    case Nil => true
+    case head::tail => if(test_negative(r, head)) testList_negative(r, tail) 
+                            else throw new Exception("Failed for: " + head)
 }
 
 ///tests
 
-//(a{1,2} + x){2,..}
-val reg0 = ("a"%(1, 2) | "x")>2
-test(reg0, "aa")
-test(reg0, "xx")
-test(reg0, "aax")
-test(reg0, "aaaaaaaxxxaaaa")
+//(a{1,2} + b){2,..}
+val reg0 = ("a"%(1, 2) | "b")>2
+//positive tests
+testList(reg0, List(
+    "aa",
+    "bb",
+    "aab",
+    "ab",
+    "aaaaa",
+    "bbbbbb",
+    "aabbaabbaabababab"*50
+))
+//negative tests
+test_negative(reg0, "c")
+test_negative(reg0, "aaaaabbaabbc")
+
 
 val reg1 = ("a"|"e")%
 test(reg1, "")
@@ -30,11 +62,18 @@ test(reg2, "aaad")
 test(reg2, "aaaac")
 test(reg2, "aaaad")
 
+test_negative(reg2, "aaaaac")
+test_negative(reg2, "aacd")
+
 val reg3 = (((("a")?)%(2,3))~("b"))%
 test(reg3, "")
 test(reg3, "b")
 test(reg3, "aab")
 test(reg3, "aaabaabbbbbaaab")
+test(reg3, "aaabab")
+
+test_negative(reg3, "aaaabab")
+test_negative(reg3, "aaaba")
 
 val reg4 = (((("ab")%(1,2))?) ~ ("c" | "d"))%
 test(reg4, "")
@@ -66,6 +105,8 @@ erase(simp(internalise(reg8)))
 val reg9 = ((("a"%)~"b") | "c")%
 test(reg9, "abbbaabc")
 
+val reg10 = "a"%(2, 4)
+test(reg10, "aaa")
 
 val reg4 = ((("ab")?)%(1,2))%
 val reg5 = (((("ab")?)%(1,2)) ~ "c")%

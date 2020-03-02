@@ -244,13 +244,10 @@ def simp(r: ARexp) : ARexp = r match {
     case ASEQ(bs, r1, r2) =>  (simp(r1), simp(r2)) match {
         case (AZERO, _) => AZERO
         case (_, AZERO) => AZERO
-        case (AONE(bs1), r2s) => fuse(bs++bs1, simp(r2s))
-        case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, simp(r1s)))
-        case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s).map(simp(_)))
-        case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls).map(simp(_)))
-        //case (ABETWEEN(bs2, r2, n2, m2), ABETWEEN(bs3, r3, n3, m3)) =>
-                   // if(r2 == r3) ABETWEEN(bs2++bs3, r2, n2+n3, m2+m3) 
-                   // else 
+        case (AONE(bs1), r2s) => fuse(bs++bs1, r2s)
+        case (r1s, AONE(bs1)) => fuse(bs, fuse_reversed(bs1, r1s))
+        case (AALTs(bs1, ls), r2s) => AALTs(bs++bs1, multiplyRight(ls, r2s))
+        case (r1s, AALTs(bs1, ls)) => AALTs(bs++bs1, multiplyLeft(r1s, ls))
         case (r1s, r2s) => ASEQ(bs, simp(r1s), simp(r2s))
     }
     case AALTs(bs, ls) => distinctBy(simp_list(ls.map(simp)), erase) match {
@@ -258,20 +255,50 @@ def simp(r: ARexp) : ARexp = r match {
         case head::Nil => fuse(bs, head)
         case ls => AALTs(bs, ls)
     }
-    //case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
-    case AFROM(bs, r1, n) => r1 match {
-        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, simp(r2), n*n2)
-        case ABETWEEN(bs2, r2, n2, _) => AFROM(bs++bs2, simp(r2), n*n2)
-        case _ => AFROM(bs, simp(r1), n)
+    case AFROM(bs, r, n) => AFROM(bs, simp(r), n)
+    case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
+    case r => r
+}
+
+def transform_aux(r: ARexp) : ARexp = r match {
+    case ASEQ(bs, reg1, reg2) =>  (reg1, reg2) match {
+        case (ABETWEEN(bs2, r2, n2, m2), ABETWEEN(bs3, r3, n3, m3)) =>
+                    if(r2 == r3) 
+                        ABETWEEN(bs2++bs3, transform_aux(r2), n2+n3, m2+m3) 
+                    else ASEQ(bs, transform_aux(ABETWEEN(bs2, r2, n2, m2)),
+                                 transform_aux(ABETWEEN(bs3, r3, n3, m3)))
+        case (ABETWEEN(bs2, r2, n2, m2), AFROM(bs3, r3, n3)) => 
+                    if(r2 == r3) 
+                        AFROM(bs2++bs3, transform_aux(r2), n2+n3) 
+                    else ASEQ(bs, ABETWEEN(bs2, transform_aux(r2), n2, m2), 
+                                AFROM(bs3, transform_aux(r3), n3))
+        case (AFROM(bs2, r2, n2), ABETWEEN(bs3, r3, n3, m3)) =>
+                    if(r2 == r3) 
+                        AFROM(bs2++bs3, transform_aux(r2), n2+n3) 
+                    else ASEQ(bs, AFROM(bs2, transform_aux(r2), n2), 
+                                ABETWEEN(bs3, transform_aux(r3), n3, m3))
+        case (AFROM(bs2, r2, n2), AFROM(bs3, r3, n3)) =>
+                    if(r2 == r3) 
+                        AFROM(bs2++bs3, transform_aux(r2), n2+n3) 
+                    else ASEQ(bs, AFROM(bs2, transform_aux(r2), n2), 
+                                AFROM(bs3, transform_aux(r3), n3))
+        case(_, _) => ASEQ(bs, transform_aux(reg1), transform_aux(reg2))
     }
-    //case ABETWEEN(bs, r, n, m) => ABETWEEN(bs, simp(r), n, m)
+    case AALTs(bs, rs) => AALTs(bs, rs.map(transform_aux(_)))
+    case AFROM(bs, r1, n) => r1 match {
+        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, transform_aux(r2), n*n2)
+        case ABETWEEN(bs2, r2, n2, _) => AFROM(bs++bs2, transform_aux(r2), n*n2)
+        case _ => AFROM(bs, transform_aux(r1), n)
+    }
     case ABETWEEN(bs, r1, n, m) => r1 match {
-        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, simp(r2), n*n2)
-        case ABETWEEN(bs2, r2, n2, m2) => ABETWEEN(bs++bs2, simp(r2), n*n2, m*m2)
-        case _ => ABETWEEN(bs, simp(r1), n, m)
+        case AFROM(bs2, r2, n2) => AFROM(bs++bs2, transform_aux(r2), n*n2)
+        case ABETWEEN(bs2, r2, n2, m2) => ABETWEEN(bs++bs2, transform_aux(r2), n*n2, m*m2)
+        case _ => ABETWEEN(bs, transform_aux(r1), n, m)
     }
     case r => r
 }
+
+def transform(r: ARexp) : ARexp = if(r == transform_aux(r)) r else transform(transform_aux(r))
 
 def internalise(r: Rexp) : ARexp = r match {
     case ZERO => AZERO
@@ -333,7 +360,9 @@ def lex(r: ARexp, s: List[Char]) : Bits = s match {
     case c::cs => lex(simp(der(r, c)), cs)
 }
 
-def normalize(r: ARexp) : ARexp = if(simp(r) == r) r else normalize(simp(r))
+def normalize_aux(r: ARexp) : ARexp = if(simp(r) == r) r else normalize_aux(simp(r))
+
+def normalize(r: ARexp) : ARexp = normalize_aux(transform(r))
  
 def lexer(r: Rexp, s: String) : Bits = lex((internalise(erase(normalize(internalise(r))))), s.toList)
 
@@ -386,4 +415,3 @@ def decode(r: Rexp, bs: Bits) = decode_aux(erase((normalize(internalise(r)))), b
     case (v, Nil) => v
     case _ => throw new Exception("Not decodable")
 }
-
