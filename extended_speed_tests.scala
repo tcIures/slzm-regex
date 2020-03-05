@@ -25,6 +25,9 @@ implicit def charlist2Alt(ls: List[Char]) : Rexp = ls match {
     case head::tail => ALT(CHAR(head), charlist2Alt(tail))
 }
 
+implicit def charset2Alt(xs: Set[Char]) : Rexp = RANGE(xs)
+
+
 def testString(n: Int) : String = "a" * n
 
 def maxValueScala(r: Regex, n: Int) : Int = {
@@ -129,8 +132,13 @@ for(i <- 0 to 7500 by 250) {
     println(i + ": " + time_needed(10, sulzmanMatch(evil7, "a"*i)))
 }
 
-val reg1 = ((("a" | ('b' to 'z').toList)$) ~ ":" ~ (("1" | ('2' to '9').toList)$))%
+val reg1 = ((( RANGE(('a' to 'z').toSet))$) ~ ":" ~ ((RANGE(('1' to '9').toSet))$))%
 val scalaReg1 = "([a-z]+:[1-9]+)*".r
+
+
+for(i <- 0 to 10000 by 1000) {
+    println(i + ": " + time_needed(10, sulzmanMatch(reg1, "abc:12"*i)))
+}
 
 
 for(i <- 0 to 1750 by 200) {
