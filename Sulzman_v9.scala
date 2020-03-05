@@ -357,7 +357,7 @@ implicit def stringOps(s: String) = new {
 @tailrec
 def lex(r: ARexp, s: List[Char], counter: Int) : Bits = s match {
     case Nil => if(nullable(r)) mkeps(r) else throw new Exception("Not matched")
-    case c::cs => if(counter % 10 == 0) lex(simp(der(r, c)), cs, counter + 1)
+    case c::cs => if(counter % 100 == 0) lex(simp(der(r, c)), cs, counter + 1)
                     else lex((der(r, c)), cs, counter + 1)
 }   
 

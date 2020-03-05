@@ -20,14 +20,6 @@ def sulzmanMatch(r: Rexp, s: String) : String = {
     }
 }
 
-implicit def charlist2Alt(ls: List[Char]) : Rexp = ls match {
-    case head::Nil => CHAR(head)
-    case head::tail => ALT(CHAR(head), charlist2Alt(tail))
-}
-
-implicit def charset2Alt(xs: Set[Char]) : Rexp = RANGE(xs)
-
-
 def testString(n: Int) : String = "a" * n
 
 def maxValueScala(r: Regex, n: Int) : Int = {
@@ -132,13 +124,8 @@ for(i <- 0 to 7500 by 250) {
     println(i + ": " + time_needed(10, sulzmanMatch(evil7, "a"*i)))
 }
 
-val reg1 = ((( RANGE(('a' to 'z').toSet))$) ~ ":" ~ ((RANGE(('1' to '9').toSet))$))%
+val reg1 = ((("a" | ('b' to 'z').toList)$) ~ ":" ~ (("1" | ('2' to '9').toList)$))%
 val scalaReg1 = "([a-z]+:[1-9]+)*".r
-
-
-for(i <- 0 to 10000 by 1000) {
-    println(i + ": " + time_needed(10, sulzmanMatch(reg1, "abc:12"*i)))
-}
 
 
 for(i <- 0 to 1750 by 200) {
@@ -177,5 +164,105 @@ for(i <- 0 to 3000 by 500) {
     println(i + ": " + time_needed(1, sulzmanMatch(reg5, "a"*i)) + "; " + 
         time_needed(1, scalaMatch(scalaReg5, "a"*i)))
 }
+
+val reg6 = ((("a")$)$) ~ "b"
+val scalaReg6 = "(a+)+b".r
+
+for(i <- 0 to 3000 by 500) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg6, "a"*i)) + "; " + 
+        time_needed(1, scalaMatch(scalaReg6, "a"*i)))
+}
+
+val reg7 = "ab" ~ ((NOT("="))$) ~ "="
+val scalaReg7 = "ab[^=]+=".r
+
+for(i <- 0 to 5000 by 500) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg7, "ab"*i+"=")) + "; " + 
+        time_needed(1, scalaMatch(scalaReg7, "ab"*i+"=")))
+}
+val scalaReg8 = "(([\\-.]|[_]+)?([a-zA-Z0-9]+))*".r
+
+val lwr = RANGE(('a' to 'z').toSet)
+val upr = RANGE(('a' to 'z').toSet)
+val nrs = RANGE(('a' to 'z').toSet)
+
+val reg9 = ((((lwr)$) ~ ((lwr | nrs)$)$) ~ upr) ~ ((lwr)$)
+val scalaReg9 = "^(([a-z])+[a-z0-9])+[A-Z]([a-z])+$".r
+
+for(i <- 0 to 100000 by 5000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg9, "a"*i+"!")) + "; " + 
+        time_needed(1, scalaMatch(scalaReg9, "a"*i+"!")))
+}
+
+for(i <- 0 to 10000000 by 100000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg9, "a"*i+"!")))
+}
+
+val reg10 = (lwr)%
+val scalaReg10 = "[a-z]*".r
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "a"*i+"!")))
+}
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "z"*i+"!")))
+}
+
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "a"*i+"!")) + "; " + 
+        time_needed(1, scalaMatch(scalaReg10, "a"*i+"!")))
+}
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "n"*i+"!")))
+}
+
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "z"*i+"!")) + "; " + 
+        time_needed(1, scalaMatch(scalaReg10, "z"*i+"!")))
+}
+
+/// [a-z] as ALT(a, ALT(b, ...))
+
+implicit def chalist2Alt(ls: List[Char]) : Rexp = ls match {
+    case Nil => ONE
+    case c::Nil => CHAR(c)
+    case c::s => ALT(CHAR(c), chalist2Alt(s))
+}
+
+val lwr = ("a" | ('b' to 'z').toList)
+val upr = ("a" | ('b' to 'z').toList)
+val nrs = ("a" | ('b' to 'z').toList)
+
+
+val reg9 = ((((lwr)$) ~ ((lwr | nrs)$)$) ~ upr) ~ ((lwr)$)
+val scalaReg9 = "^(([a-z])+[a-z0-9])+[A-Z]([a-z])+$".r
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg9, "a"*i+"!")))
+}
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg9, "z"*i+"!")))
+}
+
+val reg10 = (lwr)%
+
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "a"*i+"!")))
+}
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "n"*i+"!")))
+}
+
+for(i <- 0 to 100000 by 10000) {
+    println(i + ": " + time_needed(1, sulzmanMatch(reg10, "z"*i+"!")))
+}
+
 
 

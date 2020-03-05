@@ -16,6 +16,7 @@ case class NOT(r: Rexp) extends Rexp
 abstract class Bit
 case object S extends Bit
 case object Z extends Bit
+case class C(c: Char) extends Bit
 
 type Bits = List[Bit]
 
@@ -104,7 +105,7 @@ def mkeps(r: ARexp) : Bits = r match {
 def der(r: ARexp, c: Char) : ARexp = r match {
     case AZERO => AZERO
     case AONE(_) => AZERO
-    case ACFUN(bs, f) => if(f(c)) AONE(bs) else AZERO
+    case ACFUN(bs, f) => if(f(c)) AONE(bs ++ C(c)) else AZERO
     case AALTs(bs, ls) => AALTs(bs, ls.map(x => der(x, c)))
     case ASEQ(bs, r1, r2) => if(nullable(r1)) 
                                  AALTs(bs, List(ASEQ(List(), der(r1, c), r2), fuse(mkeps(r1), der(r2, c))))
@@ -118,7 +119,10 @@ def der(r: ARexp, c: Char) : ARexp = r match {
         case(0, i) => ASEQ(bs, fuse(Z, der(r, c)), ABETWEEN(List(), r, 0, i - 1))
         case(i, j) => ASEQ(bs, fuse(Z, der(r, c)), ABETWEEN(List(), r, i - 1, j - 1))
     }
-    case ANOT(bs, r) => ANOT(bs, der(r, c))
+    case ANOT(bs, r) => r match {
+        case ACFUN(bs, f) => if(!f(c)) AONE(bs ++ C(c)) else AZERO
+        case ANOT(bs, r) => throw new Exception("Invalid Syntax")
+    }
 }
 
 def emptyBsq(r: ARexp) : ARexp = r match {
@@ -309,14 +313,6 @@ def internalise(r: Rexp) : ARexp = r match {
     case NOT(r) => ANOT(List(), internalise(r))
 }
 
-def charlist2rexp(s: List[Char]): Rexp = s match {
-    case Nil => ONE
-    case c::Nil => CHAR(c)
-    case c::s => SEQ(CHAR(c), charlist2rexp(s))
-}
-
-implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
-
 def ALL_aux(c: Char) : Boolean = true
 def CHAR_aux(c1: Char) : (Char) => Boolean = {
     (c2) => c1 == c2
@@ -328,6 +324,15 @@ def RANGE_aux(xs: Set[Char]) : (Char) => Boolean = {
 def ALL() : Rexp = CFUN(ALL_aux)
 def CHAR(c: Char) = CFUN(CHAR_aux(c))
 def RANGE(xs: Set[Char]) : Rexp = CFUN(RANGE_aux(xs))
+
+def charlist2rexp(s: List[Char]): Rexp = s match {
+    case Nil => ONE
+    case c::Nil => CHAR(c)
+    case c::s => SEQ(CHAR(c), charlist2rexp(s))
+}
+
+implicit def string2rexp(s: String) : Rexp = charlist2rexp(s.toList)
+
 def STAR(r: Rexp) : Rexp = FROM(r, 0)
 def PLUS(r: Rexp) : Rexp = FROM(r, 1)
 def OPTIONAL(r: Rexp) : Rexp = BETWEEN(r, 0, 1)
@@ -365,7 +370,7 @@ implicit def stringOps(s: String) = new {
 @tailrec
 def lex(r: ARexp, s: List[Char], counter: Int) : Bits = s match {
     case Nil => if(nullable(r)) mkeps(r) else throw new Exception("Not matched")
-    case c::cs => if(counter % 10 == 0) lex(simp(der(r, c)), cs, counter + 1)
+    case c::cs => if(counter % 100 == 0) lex(simp(der(r, c)), cs, counter + 1)
                     else lex((der(r, c)), cs, counter + 1)
 }   
 
@@ -388,9 +393,9 @@ def flatten(v: Val) : String = v match {
     case Not(v) => flatten(v)
 }
 
-/*def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
+def decode_aux(r: Rexp, bs: Bits) : (Val, Bits) = (r, bs) match {
     case (ONE, bs) => (Empty, bs)
-    case (CFUN(f), bs) => (Chr(c), bs)
+    case (CFUN(f), C(c)::bs) => (Chr(c), bs)
     case (ALT(r1, r2), Z::bs) => {
         val (v, bs1) = decode_aux(r1, bs)
         (Left(v), bs1)
@@ -425,4 +430,4 @@ def flatten(v: Val) : String = v match {
 def decode(r: Rexp, bs: Bits) = decode_aux(preprocessing(r), bs) match {
     case (v, Nil) => v
     case _ => throw new Exception("Not decodable")
-}*/
+}
