@@ -40,11 +40,14 @@ testList(reg0, List(
     "ab",
     "aaaaa",
     "bbbbbb",
-    "aabbaabbaabababab"*5
+    "aabbaabbaabababab"*500
 ))
 test(reg0, "bb")
 test(reg0, "aaaa")
-test(reg0,  "aabbaabbaabababab"*5)
+test(reg0, "aaaaaaaa")
+test(reg0, "aaaaaaaaaaaaaa")
+test(reg0, "aaaaaaaaaaaaaaaaaaaa")
+test(reg0,  "aabbaabbaabababab"*70)
 lexer(reg0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 //negative tests
 test_negative(reg0, "c")
@@ -130,9 +133,10 @@ test(reg13, "b")
 val reg14 = ("a"!)%
 test(reg14, "twhjjfwui")
 
-val reg15 = (NOT(RANGE(('a' to 'z').toSet)))%
+val reg15 = (((NOT(RANGE(('a' to 'z').toSet)))%) | "a")%
 test(reg15, "1")
 test(reg15, "1231412412&")
+test(reg15, "a1231a")
 
 test_negative(reg15, "abv3")
 
@@ -140,5 +144,8 @@ val reg16 = NOT("ab")
 test(reg16, "ab")
 
 val reg17 = NOT("a" | "b")
-test(reg17, "a")
+test(reg17, "e")
+
+val reg18 = "a" | "b"
+test(reg18, "b")
 

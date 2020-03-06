@@ -379,12 +379,13 @@ def size(r: ARexp) : Int = r match {
     case ANOT(_, r) => 1 + size(r)
 }
 
-
 @tailrec
-def lex(r: ARexp, s: List[Char], counter: Int) : Bits = {/*println(size(r));*/s match {
-    case Nil => if(nullable(r)) mkeps(r) else Nil//else throw new Exception("Not matched!")
-    case c::cs => if(counter % 100 == 0) lex(simp(der(r, c)), cs, counter + 1)
-                    else lex((der(r, c)), cs, counter + 1)
+def lex(r: ARexp, s: List[Char]) : Bits = {/*println(size(r) + " " + previousSize + ";")*/;s match {
+    case Nil => if(nullable(r)) mkeps(r) else throw new Exception("Not matched!")
+    case c::cs => {
+        if(size(r) >= 10000) lex(simp(der(r, c)), cs)
+        else lex(der(r, c), cs)
+    }
 }}
 
 def normalize_aux(r: ARexp) : ARexp = if(simp(r) == r) r else normalize_aux(simp(r))
@@ -393,7 +394,7 @@ def normalize(r: ARexp) : ARexp = normalize_aux(r)
 
 def preprocessing(r: Rexp) : Rexp = erase(normalize(transform(internalise(r))))
  
-def lexer(r: Rexp, s: String) : Bits = lex((internalise(preprocessing(r))), s.toList, 0)
+def lexer(r: Rexp, s: String) : Bits = lex(internalise(preprocessing(r)), s.toList)
 
 def flatten(v: Val) : String = v match {
     case Empty => ""

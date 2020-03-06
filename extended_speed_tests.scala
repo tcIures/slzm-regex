@@ -189,12 +189,12 @@ val nrs = RANGE(('a' to 'z').toSet)
 val reg9 = ((((lwr)$) ~ ((lwr | nrs)$)$) ~ upr) ~ ((lwr)$)
 val scalaReg9 = "^(([a-z])+[a-z0-9])+[A-Z]([a-z])+$".r
 
-for(i <- 0 to 100000 by 5000) {
-    println(i + ": " + time_needed(1, sulzmanMatch(reg9, "a"*i+"!")) + "; " + 
+for(i <- 1 to 1000 by 500) {
+    println(i + ": " + time_needed(1, lexer(reg9, "a"*i+"!")) + "; " + 
         time_needed(1, scalaMatch(scalaReg9, "a"*i+"!")))
 }
 
-for(i <- 0 to 10000000 by 100000) {
+for(i <- 0 to 10000 by 1000) {
     println(i + ": " + time_needed(1, sulzmanMatch(reg9, "a"*i+"!")))
 }
 
